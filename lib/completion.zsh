@@ -9,8 +9,17 @@ local zcompdump="$MYZSH_CACHE/zcompdump"
 autoload -Uz compinit
 
 # Only regenerate once a day for speed
-if [[ -f "$zcompdump" ]] && [[ $(date +'%j') == $(date -r "$zcompdump" +'%j' 2>/dev/null) ]]; then
-  compinit -C -d "$zcompdump"
+if [[ -f "$zcompdump" ]]; then
+  local today=$(date +'%j')
+  local file_day
+  # macOS: date -r <file>, Linux: stat -c '%Y' + date -d
+  file_day=$(date -r "$zcompdump" +'%j' 2>/dev/null || \
+    date -d @"$(stat -c '%Y' "$zcompdump" 2>/dev/null)" +'%j' 2>/dev/null)
+  if [[ "$today" == "$file_day" ]]; then
+    compinit -C -d "$zcompdump"
+  else
+    compinit -d "$zcompdump"
+  fi
 else
   compinit -d "$zcompdump"
 fi
