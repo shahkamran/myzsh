@@ -76,7 +76,7 @@ if [[ "$MYZSH_DEFER" == "true" ]] && [[ -f "$MYZSH_DIR/lib/defer.zsh" ]]; then
 
   # Add completions to fpath (deferred)
   if [[ -d "$MYZSH_DIR/plugins/zsh-completions/src" ]]; then
-    myzsh-defer fpath=("$MYZSH_DIR/plugins/zsh-completions/src" $fpath)
+    myzsh-defer 'fpath=("'"$MYZSH_DIR"'/plugins/zsh-completions/src" $fpath)'
   fi
 else
   # Fallback: load plugins immediately
