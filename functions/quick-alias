@@ -1,0 +1,36 @@
+# Quickly add a persistent alias from the command line
+# Usage: quick-alias <name> <command>
+# Example: quick-alias gs 'git status'
+#          quick-alias dc 'docker compose'
+local name="$1"
+local cmd="${@:2}"
+
+if [[ -z "$name" || -z "$cmd" ]]; then
+  echo "Usage: quick-alias <name> <command>" >&2
+  echo "  e.g. quick-alias serve 'python3 -m http.server 8000'" >&2
+  return 1
+fi
+
+# Validate alias name
+if [[ "$name" =~ [^a-zA-Z0-9_-] ]]; then
+  echo "✗ Invalid alias name (use letters, numbers, dashes, underscores)" >&2
+  return 1
+fi
+
+local custom_file="$MYZSH_DIR/aliases/custom.zsh"
+
+# Check if alias already exists in the file
+if grep -q "^alias ${name}=" "$custom_file" 2>/dev/null; then
+  echo "⚠️  Alias '${name}' already exists. Updating..."
+  sed -i '' "/^alias ${name}=/d" "$custom_file" 2>/dev/null || \
+  sed -i "/^alias ${name}=/d" "$custom_file"
+fi
+
+# Append to custom aliases
+echo "alias ${name}='${cmd}'" >> "$custom_file"
+
+# Activate immediately in current session
+alias "${name}=${cmd}"
+
+echo "✓ Alias added: ${name} → ${cmd}"
+echo "  (saved to aliases/custom.zsh)"
