@@ -27,7 +27,7 @@ A minimalist, security-conscious, decorative zsh framework with sub-100ms startu
 ## 🚀 Quick Install
 
 ```bash
-git clone https://github.com/yourusername/myzsh.git ~/.myzsh && ~/.myzsh/install.sh
+git clone https://github.com/shahkamran/myzsh.git ~/.myzsh && ~/.myzsh/install.sh
 ```
 
 This will:
@@ -35,6 +35,64 @@ This will:
 2. Symlink the zshrc
 3. Install default plugins as git submodules
 4. Set correct directory permissions (`700`)
+
+---
+
+## 🔄 Updating
+
+To update myzsh to the latest version:
+
+```bash
+cd ~/.myzsh && git pull && git submodule update --init --recursive
+```
+
+Or use the built-in shortcut (available after install):
+
+```bash
+myzsh-update
+```
+
+### What gets updated
+
+- Framework files (lib/, themes/, aliases/, functions/)
+- Plugin submodules (pulled to latest pinned commit)
+- Lockfile should be regenerated after update:
+
+```bash
+myzsh-update-lock
+```
+
+### Safe files (never overwritten)
+
+These are yours and won't be touched by updates:
+
+| File | Purpose |
+|------|---------|
+| `myzsh.conf` | Your configuration |
+| `aliases/custom.zsh` | Your personal aliases |
+| `local.zsh` | Machine-specific overrides |
+| `functions/*` (custom) | Your custom functions |
+
+### Update plugins only
+
+```bash
+myzsh-plugin-update --all   # Update all plugins to latest
+myzsh-plugin-update <name>  # Update a specific plugin
+```
+
+After updating plugins, regenerate the lockfile:
+
+```bash
+myzsh-update-lock
+```
+
+### Verify integrity after update
+
+```bash
+myzsh-verify
+```
+
+This checks all plugin and theme files against their SHA-256 checksums in `myzsh.lock`.
 
 ---
 

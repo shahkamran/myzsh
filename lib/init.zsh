@@ -77,3 +77,35 @@ EOF
   echo "  Security:  ${MYZSH_VERIFY_PLUGINS:-true}"
   echo ""
 }
+
+# ─── Myzsh Update ────────────────────────────────────────────────────
+myzsh-update() {
+  echo "🔄 Updating myzsh..."
+  echo ""
+
+  # Pull latest framework
+  echo "  ▸ Pulling latest changes..."
+  if git -C "$MYZSH_DIR" pull --ff-only 2>&1 | sed 's/^/    /'; then
+    echo "  ✓ Framework updated"
+  else
+    echo "  ✗ Pull failed (you may have local changes)" >&2
+    echo "    Run: cd ~/.myzsh && git stash && git pull && git stash pop" >&2
+    return 1
+  fi
+
+  echo ""
+
+  # Update submodules
+  echo "  ▸ Updating plugins..."
+  git -C "$MYZSH_DIR" submodule update --init --recursive 2>&1 | sed 's/^/    /'
+  echo "  ✓ Plugins updated"
+
+  echo ""
+
+  # Regenerate lockfile
+  echo "  ▸ Regenerating lockfile..."
+  myzsh-update-lock 2>&1 | sed 's/^/    /'
+
+  echo ""
+  echo "✓ Update complete. Run 'reload' to apply."
+}
