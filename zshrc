@@ -62,6 +62,11 @@ for module in "${core_modules[@]}"; do
 done
 
 # ─── Theme (loaded before prompt) ────────────────────────────────────
+# Update check (weekly, non-blocking background fetch)
+if [[ -f "$MYZSH_DIR/lib/update-check.zsh" ]]; then
+  source "$MYZSH_DIR/lib/update-check.zsh"
+fi
+
 local theme_file="$MYZSH_DIR/themes/${MYZSH_THEME:-powerline}/${MYZSH_THEME:-powerline}.zsh-theme"
 if [[ -f "$theme_file" ]]; then
   myzsh-safe-source "$theme_file"
