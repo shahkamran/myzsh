@@ -2,6 +2,17 @@
 # Usage: port-kill <port>
 local port="${1:?Usage: port-kill <port>}"
 
+# Validate port is numeric
+if [[ ! "$port" =~ ^[0-9]+$ ]]; then
+  echo "✗ Invalid port number: '$port'" >&2
+  return 1
+fi
+
+if (( port < 1 || port > 65535 )); then
+  echo "✗ Port must be between 1 and 65535" >&2
+  return 1
+fi
+
 local pid
 pid=$(lsof -ti :"$port" 2>/dev/null)
 

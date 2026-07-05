@@ -30,16 +30,20 @@ if [[ "$MYZSH_HIST_SHARE" == "true" ]]; then
 fi
 
 # ─── History Security ─────────────────────────────────────────────────
-# Never save sensitive commands
+# Never save sensitive commands (case-insensitive matching)
 MYZSH_HIST_IGNORE_PATTERNS=(
-  'export *=*TOKEN*'
-  'export *=*SECRET*'
-  'export *=*PASSWORD*'
-  'export *=*KEY=*'
+  '*[Ee][Xx][Pp][Oo][Rr][Tt]*=*[Tt][Oo][Kk][Ee][Nn]*'
+  '*[Ee][Xx][Pp][Oo][Rr][Tt]*=*[Ss][Ee][Cc][Rr][Ee][Tt]*'
+  '*[Ee][Xx][Pp][Oo][Rr][Tt]*=*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]*'
+  '*[Ee][Xx][Pp][Oo][Rr][Tt]*=*[Aa][Pp][Ii]_[Kk][Ee][Yy]*'
+  '*[Ee][Xx][Pp][Oo][Rr][Tt]*=*[Aa][Uu][Tt][Hh]*'
   '*mysql*-p*'
   '*psql*password*'
   'curl*-H*[Aa]uth*'
+  'curl*--header*[Aa]uth*'
   'wget*--password*'
+  '*AWS_SECRET*'
+  '*PRIVATE_KEY*'
 )
 
 zshaddhistory() {

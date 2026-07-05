@@ -9,6 +9,7 @@ typeset -ga _myzsh_defer_queue=()
 typeset -g _myzsh_defer_loaded=false
 
 # ─── Queue a command for deferred execution ───────────────────────────
+# Only supports: source <path> and fpath assignments
 myzsh-defer() {
   _myzsh_defer_queue+=("$*")
 
@@ -32,11 +33,36 @@ _myzsh_defer_precmd() {
   fi
 }
 
-# ─── Execute all deferred commands ────────────────────────────────────
+# ─── Execute all deferred commands (safe dispatch) ────────────────────
 _myzsh_defer_execute() {
   local cmd
   for cmd in "${_myzsh_defer_queue[@]}"; do
-    eval "$cmd" 2>/dev/null
+    # Safe dispatch: only allow known command patterns
+    case "$cmd" in
+      myzsh-safe-source\ *)
+        # Extract file path and call safe-source
+        local file="${cmd#myzsh-safe-source }"
+        # Remove surrounding quotes if present
+        file="${file//\'/}"
+        file="${file//\"/}"
+        myzsh-safe-source "$file"
+        ;;
+      source\ *)
+        # Direct source (for trusted internal files only)
+        local file="${cmd#source }"
+        file="${file//\'/}"
+        file="${file//\"/}"
+        source "$file" 2>> "${MYZSH_CACHE}/defer-errors.log"
+        ;;
+      fpath=*)
+        # fpath assignment — execute safely
+        eval "$cmd" 2>> "${MYZSH_CACHE}/defer-errors.log"
+        ;;
+      *)
+        # Reject unknown commands — log and skip
+        echo "[$(date '+%H:%M:%S')] REJECTED deferred command: $cmd" >> "${MYZSH_CACHE}/defer-errors.log"
+        ;;
+    esac
   done
   _myzsh_defer_queue=()
 

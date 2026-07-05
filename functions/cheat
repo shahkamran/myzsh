@@ -1,4 +1,11 @@
 # Quick cheatsheet from cheat.sh
 # Usage: cheat <topic> or cheat <language>/<topic>
 local query="${1:?Usage: cheat <topic>}"
+
+# Basic sanitisation: only allow safe URL characters
+if [[ "$query" =~ [^a-zA-Z0-9_./-] ]]; then
+  echo "✗ Invalid topic (use only letters, numbers, dots, slashes, dashes)" >&2
+  return 1
+fi
+
 curl -s "cheat.sh/${query}" | less -R

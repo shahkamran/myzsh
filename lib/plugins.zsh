@@ -18,12 +18,19 @@ myzsh-plugin-add() {
     return 1
   fi
 
+  # Security: only allow HTTPS URLs
+  if [[ ! "$repo_url" =~ ^https?:// ]]; then
+    echo "⚠️  myzsh: only HTTPS URLs are allowed for security" >&2
+    return 1
+  fi
+
   # Extract plugin name from URL
   local plugin_name
   plugin_name=$(basename "$repo_url" .git)
 
-  if [[ -z "$plugin_name" ]]; then
-    echo "⚠️  myzsh: could not determine plugin name from URL" >&2
+  # Validate plugin name (prevent path traversal)
+  if [[ -z "$plugin_name" || "$plugin_name" =~ [^a-zA-Z0-9._-] ]]; then
+    echo "⚠️  myzsh: invalid plugin name derived from URL" >&2
     return 1
   fi
 

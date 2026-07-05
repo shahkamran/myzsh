@@ -7,8 +7,17 @@ if [[ -z "$target" ]]; then
   return 1
 fi
 
-if [[ "$target" =~ ^(https?|git):// ]] || [[ "$target" =~ \.git$ ]]; then
+if [[ "$target" =~ ^https?:// ]] || [[ "$target" =~ \.git$ ]]; then
+  # Only allow HTTPS URLs for safety (git:// is unencrypted, local paths are risky)
+  if [[ ! "$target" =~ ^https?:// ]]; then
+    echo "⚠️  Only HTTPS URLs are supported for security" >&2
+    return 1
+  fi
   local dirname="${target:t:r}"
+  if [[ -d "$dirname" ]]; then
+    echo "✗ Directory '$dirname' already exists" >&2
+    return 1
+  fi
   git clone --depth 1 "$target" && cd "$dirname"
 else
   mkdir -p "$target" && cd "$target"

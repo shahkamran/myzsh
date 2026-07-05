@@ -7,7 +7,8 @@
 MYZSH_LOCKFILE="$MYZSH_DIR/myzsh.lock"
 
 # ─── Safe Source ──────────────────────────────────────────────────────
-# Sources a file only if it passes ownership and permission checks
+# Sources a file only if it passes ownership, permission, and checksum checks
+# Usage: myzsh-safe-source <file> [skip_checksum:true|false]
 myzsh-safe-source() {
   local file="$1"
   local skip_checksum="${2:-false}"
@@ -16,7 +17,7 @@ myzsh-safe-source() {
     return 1
   fi
 
-  # Permission check
+  # Permission and ownership checks
   if [[ "$MYZSH_STRICT_PERMISSIONS" == "true" ]]; then
     local file_owner file_perms
     file_owner=$(stat -f '%u' "$file" 2>/dev/null || stat -c '%u' "$file" 2>/dev/null)
@@ -24,27 +25,42 @@ myzsh-safe-source() {
 
     # Must be owned by current user or root
     if [[ "$file_owner" != "$(id -u)" && "$file_owner" != "0" ]]; then
-      echo "⚠️  myzsh: refusing to source '$file' (owner mismatch)" >&2
+      echo "⚠️  myzsh: refusing to source '$file' (owner: $file_owner, expected: $(id -u))" >&2
       return 1
     fi
 
-    # Must not be world-writable
-    if [[ "${file_perms: -1}" =~ [2367] ]]; then
-      echo "⚠️  myzsh: refusing to source '$file' (world-writable)" >&2
+    # Must not be group-writable or world-writable
+    local group_perms="${file_perms: -2:1}"
+    local other_perms="${file_perms: -1}"
+    if [[ "$other_perms" =~ [2367] ]] || [[ "$group_perms" =~ [2367] ]]; then
+      echo "⚠️  myzsh: refusing to source '$file' (group/world-writable: $file_perms)" >&2
       return 1
     fi
   fi
 
-  # Checksum verification for plugins
+  # Checksum verification (only for plugin/theme files in the lockfile)
   if [[ "$MYZSH_VERIFY_PLUGINS" == "true" && "$skip_checksum" == "false" ]]; then
     if [[ -f "$MYZSH_LOCKFILE" ]]; then
-      local expected_hash actual_hash
-      expected_hash=$(grep "^${file}:" "$MYZSH_LOCKFILE" 2>/dev/null | cut -d: -f2)
+      # Verify lockfile ownership before trusting it
+      local lock_owner
+      lock_owner=$(stat -f '%u' "$MYZSH_LOCKFILE" 2>/dev/null || stat -c '%u' "$MYZSH_LOCKFILE" 2>/dev/null)
+      if [[ "$lock_owner" != "$(id -u)" && "$lock_owner" != "0" ]]; then
+        echo "🔒 myzsh: lockfile has wrong owner, refusing all plugin loads" >&2
+        return 1
+      fi
+
+      # Use grep -F for fixed-string matching (no regex metachar issues)
+      local expected_hash
+      expected_hash=$(grep -F "${file}:" "$MYZSH_LOCKFILE" 2>/dev/null | head -1 | cut -d: -f2-)
+
       if [[ -n "$expected_hash" ]]; then
+        local actual_hash
         actual_hash=$(shasum -a 256 "$file" 2>/dev/null | cut -d' ' -f1)
         if [[ "$actual_hash" != "$expected_hash" ]]; then
-          echo "🔒 myzsh: checksum mismatch for '$file'" >&2
-          echo "   Run 'myzsh-update-lock' to update." >&2
+          echo "🔒 myzsh: CHECKSUM MISMATCH for '$file'" >&2
+          echo "   Expected: ${expected_hash:0:16}..." >&2
+          echo "   Got:      ${actual_hash:0:16}..." >&2
+          echo "   Run 'myzsh-update-lock' to update, or investigate." >&2
           return 1
         fi
       fi
@@ -55,6 +71,7 @@ myzsh-safe-source() {
 }
 
 # ─── Update Lockfile ──────────────────────────────────────────────────
+# Regenerates checksums for all plugin and theme files
 myzsh-update-lock() {
   echo "🔒 Updating myzsh lockfile..."
   : > "$MYZSH_LOCKFILE"
@@ -67,6 +84,7 @@ myzsh-update-lock() {
     ((count++))
   done
 
+  # Also hash theme files
   for theme_file in "$MYZSH_DIR"/themes/**/*.zsh-theme(N); do
     local hash
     hash=$(shasum -a 256 "$theme_file" | cut -d' ' -f1)
@@ -85,8 +103,12 @@ myzsh-verify() {
     return 1
   fi
 
-  local failures=0
-  while IFS=: read -r file expected_hash; do
+  local failures=0 checked=0
+  while IFS='' read -r line; do
+    # Split on last colon (handles paths with colons)
+    local file="${line%:*}"
+    local expected_hash="${line##*:}"
+
     if [[ ! -f "$file" ]]; then
       echo "  ✗ Missing: $file"
       ((failures++))
@@ -97,13 +119,15 @@ myzsh-verify() {
     if [[ "$actual_hash" != "$expected_hash" ]]; then
       echo "  ✗ Modified: $file"
       ((failures++))
+    else
+      ((checked++))
     fi
   done < "$MYZSH_LOCKFILE"
 
   if (( failures == 0 )); then
-    echo "✓ All files verified successfully"
+    echo "✓ All ${checked} files verified successfully"
   else
-    echo "⚠️  ${failures} file(s) failed verification"
+    echo "⚠️  ${failures} file(s) failed verification (${checked} passed)"
     return 1
   fi
 }
