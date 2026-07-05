@@ -14,7 +14,7 @@ local.zsh
 cache/
 data/
 
-# Plugins (submodules managed separately)
-plugins/*
-!plugins/.gitkeep
-!plugins/README.md
+# Plugins — tracked as git submodules (not ignored)
+# Local plugin data/cache only:
+plugins/**/cache/
+plugins/**/*.zwc
