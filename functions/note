@@ -1,0 +1,19 @@
+# Quick scratch notes from the terminal
+# Usage: note [message]  — add a note
+#        note            — view all notes
+#        note -c         — clear notes
+local notefile="${MYZSH_DATA}/notes.md"
+
+if [[ "$1" == "-c" ]]; then
+  : > "$notefile"
+  echo "✓ Notes cleared"
+elif [[ -n "$1" ]]; then
+  echo "- [$(date '+%Y-%m-%d %H:%M')] $*" >> "$notefile"
+  echo "✓ Note saved"
+else
+  if [[ -f "$notefile" && -s "$notefile" ]]; then
+    cat "$notefile"
+  else
+    echo "📝 No notes yet. Usage: note <message>"
+  fi
+fi

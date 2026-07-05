@@ -1,0 +1,23 @@
+# Display terminal colour palette
+# Usage: colours [256]
+if [[ "$1" == "256" ]]; then
+  for i in {0..255}; do
+    printf "\e[48;5;${i}m %3d \e[0m" "$i"
+    (( (i + 1) % 16 == 0 )) && echo
+  done
+else
+  echo ""
+  echo "  Standard colours:"
+  for i in {0..7}; do
+    printf "  \e[48;5;${i}m  %d  \e[0m" "$i"
+  done
+  echo ""
+  echo ""
+  echo "  Bright colours:"
+  for i in {8..15}; do
+    printf "  \e[48;5;${i}m  %d  \e[0m" "$i"
+  done
+  echo ""
+  echo ""
+  echo "  Run 'colours 256' for full palette"
+fi

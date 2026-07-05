@@ -1,0 +1,28 @@
+# Universal archive extractor
+# Usage: extract <file>
+local file="$1"
+
+if [[ ! -f "$file" ]]; then
+  echo "✗ '$file' is not a valid file" >&2
+  return 1
+fi
+
+echo "📦 Extracting: $file"
+case "$file" in
+  *.tar.bz2) tar xjf "$file"   ;;
+  *.tar.gz)  tar xzf "$file"   ;;
+  *.tar.xz)  tar xJf "$file"   ;;
+  *.tar.zst) tar --zstd -xf "$file" ;;
+  *.bz2)     bunzip2 "$file"   ;;
+  *.rar)     unrar x "$file"   ;;
+  *.gz)      gunzip "$file"    ;;
+  *.tar)     tar xf "$file"    ;;
+  *.tbz2)    tar xjf "$file"   ;;
+  *.tgz)     tar xzf "$file"   ;;
+  *.zip)     unzip "$file"     ;;
+  *.Z)       uncompress "$file";;
+  *.7z)      7z x "$file"      ;;
+  *) echo "✗ Cannot extract '$file' — unsupported format" >&2; return 1 ;;
+esac
+
+echo "✓ Done"

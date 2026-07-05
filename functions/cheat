@@ -1,0 +1,4 @@
+# Quick cheatsheet from cheat.sh
+# Usage: cheat <topic> or cheat <language>/<topic>
+local query="${1:?Usage: cheat <topic>}"
+curl -s "cheat.sh/${query}" | less -R

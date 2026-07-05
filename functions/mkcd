@@ -1,0 +1,4 @@
+# Create directory and cd into it
+# Usage: mkcd <dirname>
+local dir="${1:?Usage: mkcd <dirname>}"
+mkdir -p "$dir" && cd "$dir"

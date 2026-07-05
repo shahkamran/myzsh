@@ -1,0 +1,15 @@
+# Clone a repo and cd into it, or mkdir and cd
+# Usage: take <url-or-dirname>
+local target="$1"
+
+if [[ -z "$target" ]]; then
+  echo "Usage: take <git-url|directory>" >&2
+  return 1
+fi
+
+if [[ "$target" =~ ^(https?|git):// ]] || [[ "$target" =~ \.git$ ]]; then
+  local dirname="${target:t:r}"
+  git clone --depth 1 "$target" && cd "$dirname"
+else
+  mkdir -p "$target" && cd "$target"
+fi

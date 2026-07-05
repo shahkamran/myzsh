@@ -1,0 +1,20 @@
+# Generated files
+myzsh.lock
+
+# User-specific overrides
+local.zsh
+
+# Editor swap files
+*.swp
+
+# macOS
+.DS_Store
+
+# Runtime directories
+cache/
+data/
+
+# Plugins (submodules managed separately)
+plugins/*
+!plugins/.gitkeep
+!plugins/README.md

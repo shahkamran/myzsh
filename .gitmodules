@@ -1,0 +1,5 @@
+# Plugins will be added here as git submodules.
+# Example:
+# [submodule "plugins/example"]
+#     path = plugins/example
+#     url = https://github.com/user/example.git
