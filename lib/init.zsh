@@ -54,6 +54,7 @@ if [[ "$TERM" != "dumb" ]]; then
 fi
 
 # ─── Reload Function ─────────────────────────────────────────────────
+unalias reload 2>/dev/null
 reload() {
   echo "♻️  Reloading shell..."
   exec zsh
