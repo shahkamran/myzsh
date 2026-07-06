@@ -166,8 +166,9 @@ _myzsh_ssh_info() {
 # ─── Context Change Detection ─────────────────────────────────────────
 typeset -g _myzsh_prev_dir=""
 typeset -g _myzsh_prev_branch=""
+typeset -g _myzsh_context_changed_flag=1  # 1 = changed (show header on first prompt)
 
-_myzsh_context_changed() {
+_myzsh_check_context() {
   local cur_dir="${PWD}"
   local cur_branch=""
   if [[ "$MYZSH_SHOW_GIT" == "true" ]]; then
@@ -177,10 +178,13 @@ _myzsh_context_changed() {
   if [[ "$cur_dir" != "$_myzsh_prev_dir" || "$cur_branch" != "$_myzsh_prev_branch" ]]; then
     _myzsh_prev_dir="$cur_dir"
     _myzsh_prev_branch="$cur_branch"
-    return 0  # context changed
+    _myzsh_context_changed_flag=1
+  else
+    _myzsh_context_changed_flag=0
   fi
-  return 1  # same context
 }
+
+add-zsh-hook precmd _myzsh_check_context
 
 # ─── Build the Prompt ─────────────────────────────────────────────────
 _myzsh_build_prompt() {
@@ -188,7 +192,7 @@ _myzsh_build_prompt() {
   local prompt_parts=""
 
   # Only show the top info line if directory or branch changed
-  if _myzsh_context_changed; then
+  if (( _myzsh_context_changed_flag )); then
     # Top line decoration
     prompt_parts+="${C_TIME}╭─${C_RESET}"
 
