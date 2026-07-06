@@ -1,0 +1,92 @@
+# myzsh help — show available aliases, functions, and commands
+# Usage: myzsh-help [group]
+#   myzsh-help          — show all groups
+#   myzsh-help git      — show git aliases only
+#   myzsh-help docker   — show docker aliases only
+
+local group="${1:-all}"
+local MYZSH="${MYZSH_DIR:-$HOME/.myzsh}"
+
+_myzsh_help_header() {
+  echo ""
+  echo "%F{cyan}━━━ $1 ━━━%f" | prompt_expand 2>/dev/null || echo "━━━ $1 ━━━"
+}
+
+_myzsh_help_print_header() {
+  echo ""
+  printf "\033[36m━━━ %s ━━━\033[0m\n" "$1"
+}
+
+_myzsh_help_print_alias() {
+  printf "  \033[33m%-12s\033[0m %s\n" "$1" "$2"
+}
+
+_myzsh_help_print_func() {
+  printf "  \033[32m%-12s\033[0m %s\n" "$1" "$2"
+}
+
+# Show available groups
+if [[ "$group" == "all" ]]; then
+  echo ""
+  printf "\033[36m╔══════════════════════════════════════════════╗\033[0m\n"
+  printf "\033[36m║\033[0m        \033[1mmyzsh cheatsheet\033[0m                   \033[36m║\033[0m\n"
+  printf "\033[36m╚══════════════════════════════════════════════╝\033[0m\n"
+
+  _myzsh_help_print_header "Alias Groups (myzsh-help <group> for details)"
+  for f in "$MYZSH"/aliases/*.zsh(.N); do
+    local name="${${f:t}%.zsh}"
+    _myzsh_help_print_alias "$name" "$(head -4 "$f" | grep '║.*::' | sed 's/.*:://;s/║//;s/^[[:space:]]*//')"
+  done
+
+  _myzsh_help_print_header "Functions"
+  _myzsh_help_print_func "cheat" "cheat <topic> — quick cheatsheet from cheat.sh"
+  _myzsh_help_print_func "colours" "show terminal colour palette"
+  _myzsh_help_print_func "extract" "extract <archive> — auto-detect and extract"
+  _myzsh_help_print_func "mkcd" "mkcd <dir> — mkdir and cd into it"
+  _myzsh_help_print_func "note" "note [text] — quick notes"
+  _myzsh_help_print_func "port-kill" "port-kill <port> — kill process on port"
+  _myzsh_help_print_func "quick-alias" "quick-alias <name> <cmd> — create alias on the fly"
+  _myzsh_help_print_func "take" "take <dir> — mkdir -p and cd"
+  _myzsh_help_print_func "up" "up <n> — go up n directories"
+
+  _myzsh_help_print_header "Commands"
+  _myzsh_help_print_func "myzsh-info" "show myzsh version and config"
+  _myzsh_help_print_func "myzsh-update" "pull latest myzsh + plugins"
+  _myzsh_help_print_func "myzsh-help" "this cheatsheet"
+  _myzsh_help_print_func "reload" "reload shell (exec zsh)"
+
+  echo ""
+  printf "  \033[240mTip: myzsh-help git | myzsh-help docker | myzsh-help system\033[0m\n"
+  echo ""
+  return 0
+fi
+
+# Show specific group
+local alias_file="$MYZSH/aliases/${group}.zsh"
+if [[ ! -f "$alias_file" ]]; then
+  echo "Unknown group: $group"
+  echo "Available: $(ls "$MYZSH"/aliases/*.zsh(.N) | xargs -I{} basename {} .zsh | tr '\n' ' ')"
+  return 1
+fi
+
+_myzsh_help_print_header "$group aliases"
+
+# Parse alias file: extract alias lines and comments above them
+local prev_comment=""
+while IFS= read -r line; do
+  if [[ "$line" =~ ^#\ ─── ]]; then
+    echo ""
+    printf "  \033[90m%s\033[0m\n" "$(echo "$line" | sed 's/^# ─── //;s/ ─*$//')"
+  elif [[ "$line" =~ ^alias\ ([^=]+)=(.+)$ ]]; then
+    local aname="${match[1]}"
+    local aval="${match[2]}"
+    # Strip surrounding quotes
+    aval="${aval#\'}"
+    aval="${aval%\'}"
+    aval="${aval#\"}"
+    aval="${aval%\"}"
+    _myzsh_help_print_alias "$aname" "$aval"
+  fi
+done < "$alias_file"
+
+echo ""
