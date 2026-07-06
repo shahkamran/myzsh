@@ -27,8 +27,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
   alias brewup='brew update && brew upgrade && brew cleanup'
 fi
 
-# Quick reload
-alias reload='exec zsh'
+# Quick shortcuts
 alias cls='clear'
 
 # Timestamp
