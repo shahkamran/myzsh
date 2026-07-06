@@ -163,48 +163,72 @@ _myzsh_ssh_info() {
   fi
 }
 
+# ─── Context Change Detection ─────────────────────────────────────────
+typeset -g _myzsh_prev_dir=""
+typeset -g _myzsh_prev_branch=""
+
+_myzsh_context_changed() {
+  local cur_dir="${PWD}"
+  local cur_branch=""
+  if [[ "$MYZSH_SHOW_GIT" == "true" ]]; then
+    cur_branch=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+  fi
+
+  if [[ "$cur_dir" != "$_myzsh_prev_dir" || "$cur_branch" != "$_myzsh_prev_branch" ]]; then
+    _myzsh_prev_dir="$cur_dir"
+    _myzsh_prev_branch="$cur_branch"
+    return 0  # context changed
+  fi
+  return 1  # same context
+}
+
 # ─── Build the Prompt ─────────────────────────────────────────────────
 _myzsh_build_prompt() {
   local exit_code="$?"
   local prompt_parts=""
 
-  # Top line decoration
-  prompt_parts+="${C_TIME}╭─${C_RESET}"
+  # Only show the top info line if directory or branch changed
+  if _myzsh_context_changed; then
+    # Top line decoration
+    prompt_parts+="${C_TIME}╭─${C_RESET}"
 
-  # SSH indicator
-  prompt_parts+="$(_myzsh_ssh_info)"
+    # SSH indicator
+    prompt_parts+="$(_myzsh_ssh_info)"
 
-  # User@host (only show host if SSH or if configured)
-  if [[ -n "$SSH_CONNECTION" ]]; then
-    prompt_parts+="${C_USER} %n${C_RESET}${C_HOST}@%m ${C_RESET}"
-  else
-    prompt_parts+="${C_USER} %n ${C_RESET}"
-  fi
-
-  # Separator
-  if [[ "$SEP_STYLE" == "thin" ]]; then
-    prompt_parts+="${C_TIME}${ICON_ARROW_THIN}${C_RESET} "
-  fi
-
-  # Directory (shortened)
-  prompt_parts+="${C_DIR} ${ICON_FOLDER} %3~ ${C_RESET}"
-
-  # Git info
-  if [[ "$MYZSH_SHOW_GIT" == "true" ]]; then
-    local git_info="$(_myzsh_git_info)"
-    if [[ -n "$git_info" ]]; then
-      if [[ "$SEP_STYLE" == "thin" ]]; then
-        prompt_parts+="${C_TIME}${ICON_ARROW_THIN}${C_RESET}"
-      fi
-      prompt_parts+="${git_info}"
+    # User@host (only show host if SSH or if configured)
+    if [[ -n "$SSH_CONNECTION" ]]; then
+      prompt_parts+="${C_USER} %n${C_RESET}${C_HOST}@%m ${C_RESET}"
+    else
+      prompt_parts+="${C_USER} %n ${C_RESET}"
     fi
+
+    # Separator
+    if [[ "$SEP_STYLE" == "thin" ]]; then
+      prompt_parts+="${C_TIME}${ICON_ARROW_THIN}${C_RESET} "
+    fi
+
+    # Directory (shortened)
+    prompt_parts+="${C_DIR} ${ICON_FOLDER} %3~ ${C_RESET}"
+
+    # Git info
+    if [[ "$MYZSH_SHOW_GIT" == "true" ]]; then
+      local git_info="$(_myzsh_git_info)"
+      if [[ -n "$git_info" ]]; then
+        if [[ "$SEP_STYLE" == "thin" ]]; then
+          prompt_parts+="${C_TIME}${ICON_ARROW_THIN}${C_RESET}"
+        fi
+        prompt_parts+="${git_info}"
+      fi
+    fi
+
+    # Virtual env
+    prompt_parts+="$(_myzsh_venv_info)"
+
+    # Newline before command line
+    prompt_parts+=$'\n'
   fi
 
-  # Virtual env
-  prompt_parts+="$(_myzsh_venv_info)"
-
-  # Newline + command prompt
-  prompt_parts+=$'\n'
+  # Command line (always shown)
   prompt_parts+="${C_TIME}╰─${C_RESET}"
 
   # Command indicator (green/red based on last exit code)
