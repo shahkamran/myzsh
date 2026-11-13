@@ -1,87 +1,215 @@
-# myzsh help — show available aliases, functions, and commands
-# Usage: myzsh-help [group]
-#   myzsh-help          — show all groups
-#   myzsh-help git      — show git aliases only
-#   myzsh-help docker   — show docker aliases only
+# myzsh cheatsheet: keys, commands, functions, aliases and tips on one page
+# Usage: myzsh-help [group]   (shortcut: ?)
+#   ?            the one-page cheatsheet
+#   ? <group>    every alias in a group, e.g. ? git
+#   ? local      your own aliases and functions from local.zsh
+#
+# Aliases and functions are read from the files at run time, so the page
+# follows your setup; keys and tips are curated. It never pages or prompts,
+# fits $COLUMNS (two columns from 110), and drops colour for NO_COLOR, dumb
+# terminals and pipes, and Unicode for non-UTF-8 locales.
+emulate -L zsh
+setopt extended_glob
+local group="${1:-all}" MYZSH="${MYZSH_DIR:-$HOME/.myzsh}"
+local -i W=80 KW=16
+[[ "$COLUMNS" == <1-> ]] && W=$COLUMNS
 
-local group="${1:-all}"
-local MYZSH="${MYZSH_DIR:-$HOME/.myzsh}"
-
-_myzsh_help_print_header() {
-  echo ""
-  printf "\033[36m━━━ %s ━━━\033[0m\n" "$1"
-}
-
-_myzsh_help_print_alias() {
-  printf "  \033[33m%-12s\033[0m %s\n" "$1" "$2"
-}
-
-_myzsh_help_print_func() {
-  printf "  \033[32m%-12s\033[0m %s\n" "$1" "$2"
-}
-
-# Show available groups
-if [[ "$group" == "all" ]]; then
-  echo ""
-  printf "\033[36m╔══════════════════════════════════════════════╗\033[0m\n"
-  printf "\033[36m║\033[0m        \033[1mmyzsh cheatsheet\033[0m                   \033[36m║\033[0m\n"
-  printf "\033[36m╚══════════════════════════════════════════════╝\033[0m\n"
-
-  _myzsh_help_print_header "Alias Groups (myzsh-help <group> for details)"
-  for f in "$MYZSH"/aliases/*.zsh(.N); do
-    local name="${${f:t}%.zsh}"
-    _myzsh_help_print_alias "$name" "$(head -4 "$f" | grep '║.*::' | sed 's/.*:://;s/║//;s/^[[:space:]]*//')"
-  done
-
-  _myzsh_help_print_header "Functions"
-  _myzsh_help_print_func "cheat" "cheat <topic> — quick cheatsheet from cheat.sh"
-  _myzsh_help_print_func "colours" "show terminal colour palette"
-  _myzsh_help_print_func "extract" "extract <archive> — auto-detect and extract"
-  _myzsh_help_print_func "mkcd" "mkcd <dir> — mkdir and cd into it"
-  _myzsh_help_print_func "note" "note [text] — quick notes"
-  _myzsh_help_print_func "port-kill" "port-kill <port> — kill process on port"
-  _myzsh_help_print_func "quick-alias" "quick-alias <name> <cmd> — create alias on the fly"
-  _myzsh_help_print_func "take" "take <dir> — mkdir -p and cd"
-  _myzsh_help_print_func "up" "up <n> — go up n directories"
-
-  _myzsh_help_print_header "Commands"
-  _myzsh_help_print_func "myzsh-info" "show myzsh version and config"
-  _myzsh_help_print_func "myzsh-update" "pull latest myzsh + plugins"
-  _myzsh_help_print_func "myzsh-help" "this cheatsheet (shortcut: ?)"
-  _myzsh_help_print_func "reload" "reload shell (exec zsh)"
-
-  echo ""
-  printf "  \033[38;5;240mTip: myzsh-help git | myzsh-help docker | myzsh-help system\033[0m\n"
-  echo ""
-  return 0
+# ─── Style: colour only on a capable terminal, Unicode only in UTF-8 ──
+local c0= cB= cH= cK= cF= cM=
+if [[ -t 1 && -z "${NO_COLOR-}" && "$TERM" != (dumb|) ]]; then
+  c0=$'\e[0m' cB=$'\e[1m' cH=$'\e[36m' cK=$'\e[33m' cF=$'\e[32m' cM=$'\e[90m'
+fi
+local rule=- thick== ell='~' dot=/ up=Up dn=Down lt=Left rt=Right
+if [[ "$TERM" != dumb && "${LC_ALL:-${LC_CTYPE:-$LANG}}" == (#i)*utf(-|)8* ]]; then
+  rule=─ thick=━ ell=… dot=· up=↑ dn=↓ lt=← rt=→
 fi
 
-# Show specific group
-local alias_file="$MYZSH/aliases/${group}.zsh"
-if [[ ! -f "$alias_file" ]]; then
-  echo "Unknown group: $group"
-  echo "Available: $(ls "$MYZSH"/aliases/*.zsh(.N) | xargs -I{} basename {} .zsh | tr '\n' ' ')"
-  return 1
-fi
+{
+  # _myzsh_help_fit <text> <width> [pad]: cut to width (with ellipsis)
+  _myzsh_help_fit() {
+    local s="$1"; local -i n=$2
+    (( n > 0 )) || { REPLY=""; return; }
+    (( ${(m)#s} > n )) && s="${s[1,n-1]}$ell"
+    if [[ -n "$3" ]]; then REPLY="${(mr:n:)s}"; else REPLY="$s"; fi
+  }
+  # _myzsh_help_cell <record> <width> [pad]: one formatted cell in REPLY.
+  # Records: H<title> | K<key>\t<desc> | F|C<cmd>\t<desc> (C: wide key)
+  #          | N<note> | ""
+  _myzsh_help_cell() {
+    local rec="$1" kind="${1[1]}" body="${1[2,-1]}" key desc=""
+    local -i w=$2 kw
+    key="${body%%$'\t'*}"; [[ "$body" == *$'\t'* ]] && desc="${body#*$'\t'}"
+    case "$kind" in
+      H) _myzsh_help_fit "$rule$rule $key " $w
+         REPLY="$cH${(pmr:w::$rule:)REPLY}$c0" ;;
+      K|F|C)
+         kw=$KW; [[ $kind == C ]] && kw=20
+         (( ${#key} > kw )) && kw=${#key}; (( kw > w / 2 )) && kw=$(( w / 2 ))
+         _myzsh_help_fit "$key" $kw 1; local k="$REPLY"
+         _myzsh_help_fit "$desc" $(( w - kw - 1 )) "$3"
+         local c="$cK"; [[ $kind == [FC] ]] && c="$cF"
+         REPLY="$c$k$c0 $REPLY" ;;
+      N) _myzsh_help_fit "$key" $w "$3"; REPLY="$cM$REPLY$c0" ;;
+      *) REPLY=""; [[ -n "$3" ]] && REPLY="${(r:w:)REPLY}" ;;
+    esac
+  }
+  # _myzsh_help_parse <file>: reply=(records) for its aliases (and, for
+  # local.zsh, top-level functions), grouped under its "# ─── X" headings;
+  # own=(names whose live alias is the one this file defines)
+  _myzsh_help_parse() {
+    reply=() own=()
+    [[ -r "$1" ]] || return 0
+    local line head="" n v; local -A seen; local -a fns
+    for line in "${(@f)$(<"$1")}"; do
+      if [[ "$line" == '# ─── '* ]]; then
+        head="${${line#'# ─── '}%% ─*}"
+      elif [[ "$line" == (#b)[[:space:]]#alias[[:space:]]##(--[[:space:]]##|)([^=[:space:]]##)=(*) ]]; then
+        n="${${match[2]#[\'\"]}%[\'\"]}"; v="${${match[3]#[\'\"]}%[\'\"]}"
+        [[ "${aliases[$n]-}" == "$v" ]] && own+=("$n")
+        (( ${+seen[$n]} )) && continue; seen[$n]=1
+        (( ${+aliases[$n]} )) && v="${aliases[$n]}"
+        [[ -n "$head" ]] && { reply+=("" "H$head"); head=""; }
+        reply+=("K$n"$'\t'"${v//$'\t'/ }")
+      elif [[ "$line" == (#b)(function[[:space:]]##|)([[:alnum:]][[:alnum:]_.:-]#)[[:space:]]#\(\)* ||
+              "$line" == (#b)(function[[:space:]]##)([[:alnum:]][[:alnum:]_.:-]#)* ]]; then
+        [[ "$1" == */local.zsh ]] && fns+=("${match[2]}")
+      fi
+    done
+    (( ${#fns} )) && reply+=("" "HFunctions" "N  ${(j: :)${(u)fns}}")
+    (( ${#reply} )) && [[ -z "${reply[1]}" ]] && shift reply
+    return 0
+  }
+  # _myzsh_help_print <records...>: one column, as wide as fits
+  _myzsh_help_print() {
+    local -i cw=$(( W - 2 )); (( cw > 100 )) && cw=100; (( cw < 10 )) && cw=10
+    local r; for r in "$@"; do _myzsh_help_cell "$r" $cw; print -r -- "  $REPLY"; done
+  }
 
-_myzsh_help_print_header "$group aliases"
+  local -a groups=("$MYZSH"/aliases/*.zsh(N:t:r) local) own
 
-# Parse alias file: extract alias lines and comments above them
-local prev_comment=""
-while IFS= read -r line; do
-  if [[ "$line" =~ ^#\ ─── ]]; then
-    echo ""
-    printf "  \033[90m%s\033[0m\n" "$(echo "$line" | sed 's/^# ─── //;s/ ─*$//')"
-  elif [[ "$line" =~ ^alias\ ([^=]+)=(.+)$ ]]; then
-    local aname="${match[1]}"
-    local aval="${match[2]}"
-    # Strip surrounding quotes
-    aval="${aval#\'}"
-    aval="${aval%\'}"
-    aval="${aval#\"}"
-    aval="${aval%\"}"
-    _myzsh_help_print_alias "$aname" "$aval"
+  # ─── ? <group>: one alias group in full ─────────────────────────────
+  if [[ "$group" != all ]]; then
+    if [[ "$group" != [[:alnum:]_-]## || ${groups[(Ie)$group]} == 0 ]]; then
+      print -r -- "Unknown group: $group"
+      print -r -- "Available: ${(j: :)groups}"
+      return 1
+    fi
+    local file="$MYZSH/aliases/$group.zsh" about=""
+    [[ "$group" == local ]] && file="$MYZSH/local.zsh" about="your own, git-ignored, loaded last"
+    if [[ -z "$about" ]]; then  # the banner line under "myzsh :: aliases/<group>"
+      local -a lines=("${(@f)$(<"$file")}")
+      about="${lines[${lines[(i)*myzsh :: aliases/*]}+1]-}"
+      about="${${about##[^[:alnum:]]#}%%[^[:alnum:]!.)]#}"
+    fi
+    _myzsh_help_parse "$file"
+    (( ${#aliases} && ! ${#own} )) && [[ $group != local ]] && about+=" $dot not loaded in this shell"
+    print ""
+    _myzsh_help_print "H$group aliases" "N${about}"
+    (( ${#reply} )) || reply=("Nnone yet $dot add them to ${(D)MYZSH}/local.zsh")
+    _myzsh_help_print "${reply[@]}"
+    print ""
+    return 0
   fi
-done < "$alias_file"
 
-echo ""
+  # ─── ?: the one-page cheatsheet ─────────────────────────────────────
+  local -a L R
+  L=("HKeys"
+    "KTab $dot Shift+Tab"$'\t'"complete, then cycle the menu"
+    "K$up $dn $lt $rt in menu"$'\t'"move; Return runs it, Ctrl+G quits"
+    "KCtrl+O in menu"$'\t'"accept and keep completing"
+    "K$up / $dn"$'\t'"history matching what you typed"
+    "KCtrl+R / Ctrl+S"$'\t'"search history back / forward"
+    "KCtrl+A / Ctrl+E"$'\t'"jump to line start / end"
+    "KAlt+B / Alt+F"$'\t'"word back / forward"
+    "KCtrl+W / Alt+D"$'\t'"delete word back / forward"
+    "KCtrl+U / Ctrl+K"$'\t'"delete to line start / end"
+    "KCtrl+Y / Ctrl+Z"$'\t'"paste deleted text / undo"
+    "KCtrl+L"$'\t'"clear the screen"
+    "KCtrl+Space / $rt"$'\t'"accept the grey suggestion"
+    "KAlt+Enter"$'\t'"new line without running"
+    "KCtrl+X Ctrl+E"$'\t'"edit the command in \$EDITOR"
+    "KAlt+$up / Alt+$lt"$'\t'"cd .. / back to previous dir")
+  [[ "$MYZSH_KEYBIND_STYLE" == vim ]] && L+=("N  vi mode: Esc for normal mode, keys above in insert")
+  L+=("" "Hmyzsh commands"
+    "C? [group]"$'\t'"this page / one alias group"
+    "Creload"$'\t'"restart the shell to apply changes"
+    "Cmyzsh-info"$'\t'"version, theme, plugins, aliases"
+    "Cmyzsh-update"$'\t'"pull framework + plugins, relock"
+    "Cmyzsh-update-dismiss"$'\t'"hide the update notice"
+    "Cmyzsh-verify"$'\t'"check plugins/themes vs lockfile"
+    "Cmyzsh-update-lock"$'\t'"re-hash after editing them")
+
+  R=("HFunctions")
+  local f first
+  for f in "$MYZSH"/functions/[^_]*(.N); do
+    [[ "${f:t}" == myzsh-help ]] && continue
+    first=""; IFS= read -r first < "$f" 2>/dev/null
+    R+=("F${f:t}"$'\t'"${${first#\#}# }")
+  done
+  R+=("" "HAliases $dot ? <group> for all")
+  local g; local -a names enabled=("${MYZSH_ALIASES[@]}")
+  for g in "${groups[@]}"; do
+    if [[ $g == local ]]; then _myzsh_help_parse "$MYZSH/local.zsh"
+    else _myzsh_help_parse "$MYZSH/aliases/$g.zsh"; fi
+    names=(${${(M)reply:#K*}%%$'\t'*}); names=(${names#K})
+    # In a live shell list only what this group defines now (tool checks,
+    # agent mode, names another group or local.zsh took over)
+    (( ${#aliases} )) && [[ $g != local ]] && names=(${(u)own})
+    [[ $g == local ]] && names+=(${=${${(M)reply:#N*}#N}})
+    if [[ $g != local ]] && (( ${#enabled} && ! ${enabled[(Ie)$g]} )); then
+      R+=("K$g"$'\t'"off $dot enable in myzsh.conf")
+    elif [[ $g == local ]] && (( ! ${#names} )); then
+      R+=("K$g"$'\t'"none yet $dot add yours to local.zsh")
+    elif (( ! ${#names} )); then
+      R+=("K$g"$'\t'"not loaded $dot needs its tool")
+    else
+      R+=("K$g (${#names})"$'\t'"${(j: :)names}")
+    fi
+  done
+  local -a themes=("$MYZSH"/themes/*(/N:t))
+  R+=("" "HTips"
+    "Ksettings"$'\t'"${(D)MYZSH}/myzsh.conf, then reload"
+    "Ktheme"$'\t'"MYZSH_THEME=${(j:|:)themes}"
+    "Kyour own"$'\t'"local.zsh: git-ignored, loaded last"
+    "Kagent mode"$'\t'"IDE/AI shells: lean, no prompts"
+    "Kforce a mode"$'\t'"MYZSH_FORCE_INTERACTIVE=1 / MYZSH_AGENT_MODE=1"
+    "Kjump dirs"$'\t'"type a dir to cd $dot d, then 1-5")
+  [[ "$MYZSH_HIST_IGNORE_SPACE" == true ]] && R+=("Kprivate"$'\t'"start with a space: not saved in history")
+  R+=("Kred command"$'\t'"not found; check spelling or install it"
+    "Kany tool"$'\t'"cheat <cmd>, e.g. cheat tar")
+
+  # Title bar: name on the left, current theme/mode on the right
+  local mode="${MYZSH_THEME:-powerline} theme"
+  [[ -n "$MYZSH_AGENT_MODE" ]] && mode="agent mode${MYZSH_AGENT_REASON:+ ($MYZSH_AGENT_REASON)}"
+  local -i two=0 cw tw
+  if (( W >= 110 )); then
+    two=1; cw=$(( (W - 4) / 2 )); (( cw > 66 )) && cw=66; tw=$(( cw * 2 + 2 ))
+  else
+    cw=$(( W - 2 )); (( cw > 100 )) && cw=100; (( cw < 10 )) && cw=10; tw=$cw
+  fi
+  local title="myzsh cheatsheet"
+  print ""
+  if (( tw - ${#title} - ${(m)#mode} >= 2 )); then
+    local gap=""; gap="${(l:tw-${#title}-${(m)#mode}:)gap}"
+    print -r -- "  $cB$title$c0$gap$cM$mode$c0"
+  else
+    _myzsh_help_fit "$title" $tw; print -r -- "  $cB$REPLY$c0"
+  fi
+  local bar=""; bar="${(pl:tw::$thick:)bar}"
+  print -r -- "  $cH$bar$c0"
+  if (( two )); then
+    local -i i n=$(( ${#L} > ${#R} ? ${#L} : ${#R} ))
+    local a
+    for (( i = 1; i <= n; i++ )); do
+      _myzsh_help_cell "${L[i]-}" $cw 1; a="$REPLY"
+      _myzsh_help_cell "${R[i]-}" $cw
+      print -r -- "  $a  $REPLY"
+    done
+  else
+    _myzsh_help_print "${L[@]}" "" "${R[@]}"
+  fi
+  print ""
+  return 0
+} always {
+  unfunction _myzsh_help_fit _myzsh_help_cell _myzsh_help_parse _myzsh_help_print 2>/dev/null
+}

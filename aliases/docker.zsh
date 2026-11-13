@@ -4,6 +4,10 @@
 # ║  Docker & docker-compose shortcuts                                  ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
+# Only when docker is installed: aliases to a missing command are useless
+# and zsh-syntax-highlighting shows them red as unknown.
+(( $+commands[docker] )) || return 0
+
 # ─── Docker ───────────────────────────────────────────────────────────
 alias d='docker'
 alias dps='docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'

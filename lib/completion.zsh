@@ -101,3 +101,19 @@ bindkey -M menuselect '^M'  .accept-line                # Return accepts and run
 bindkey -M menuselect '^o'  accept-and-infer-next-history  # Ctrl+O accepts and drills in
 # No binding for a bare ESC: it would make ESC a prefix key and break
 # arrow keys whose bytes arrive split. Ctrl+G cancels the menu.
+
+# ─── myzsh's own commands ─────────────────────────────────────────────
+# `? sys<Tab>` → `? system`: the ? alias completes like myzsh-help.
+_myzsh_help_groups() {
+  (( CURRENT == 2 )) || return 1
+  local expl; local -a g=("$MYZSH_DIR"/aliases/*.zsh(N:t:r) local)
+  _wanted groups expl 'alias group' compadd -a g
+}
+_myzsh_archives() {
+  _files -g '*.(tar|tgz|tbz2|gz|bz2|xz|zst|zip|rar|7z|Z)(-.)'
+}
+if (( $+functions[compdef] )); then
+  compdef _myzsh_help_groups myzsh-help
+  compdef _myzsh_archives extract
+  compdef _directories mkcd take
+fi

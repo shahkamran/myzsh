@@ -35,7 +35,11 @@ fi
 # ─── Disk & Memory ───────────────────────────────────────────────────
 alias df='df -h'
 alias du='du -h'
-alias free='free -h 2>/dev/null || vm_stat'
+if (( $+commands[free] )); then
+  alias free='free -h'
+else  # macOS has no free(1)
+  alias free='vm_stat'
+fi
 alias disk='df -h | head -8'
 
 # ─── Process Management ──────────────────────────────────────────────

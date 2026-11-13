@@ -192,12 +192,14 @@ Aliases are grouped into modules. Enable or disable groups in `myzsh.conf`:
 | Group | File | Examples |
 |-------|------|----------|
 | **git** | `aliases/git.zsh` | `gs`, `ga`, `gc`, `gp`, `gl`, `gd`, `gco` |
-| **docker** | `aliases/docker.zsh` | `dk`, `dkc`, `dkps`, `dkimg`, `dkrm` |
+| **docker** | `aliases/docker.zsh` | `dps`, `di`, `dex`, `dc`, `dcu` (only when docker is installed) |
 | **system** | `aliases/system.zsh` | `ll`, `la`, `df`, `du`, `ports`, `psg` |
 | **navigation** | `aliases/navigation.zsh` | `..`, `...`, `~`, `-`, `d` (dirs) |
 | **custom** | `aliases/custom.zsh` | Your personal aliases |
 
 Add your own aliases to `aliases/custom.zsh` — it won't be overwritten by updates.
+
+Type `?` (or `myzsh-help`) for a one-page cheatsheet of keys, commands, functions, alias groups and tips. `? <group>` (Tab-completes, e.g. `? sys` → `? system`) lists every alias in a group, and `? local` lists yours from `local.zsh`.
 
 ---
 

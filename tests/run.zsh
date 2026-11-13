@@ -6,7 +6,7 @@
 #
 # Usage: zsh -f tests/run.zsh [--src DIR] [--only T1,T2,...]
 #   --src   myzsh tree to test (default: this repo)
-#   --only  comma-separated case list (T1 T2 T3 T4 T5 T6 T7 S U)
+#   --only  comma-separated case list (T1 T2 T3 T4 T5 T6 T7 H S U)
 # Env: MYZSH_TEST_KEEP=1 keeps the sandbox, MYZSH_TEST_VERBOSE=1 dumps output.
 
 emulate -L zsh
@@ -261,16 +261,77 @@ fi
 # ─── T7: myzsh-help and the ? shortcut ───────────────────────────────
 if want T7; then
   print -r -- "── T7: myzsh-help / ?"
-  local m
-  for m in full kiro; do
+  local m label o1 o2 o3 raw
+  local bad_out='bad math|bad pattern|bad substitution|parse error|command not found|no such|not found:|unknown file attribute'
+  for m in full kiro agent; do
     [[ "$m" == kiro && -z "$T_KIRO_RC" ]] && continue
-    t_start "$m"; T_OUT=""
-    t_cmd '?; echo "@@H1[$?]@@"' 1.5; local o1="$(t_clean)"; T_OUT=""
-    t_cmd 'myzsh-help git; echo "@@H2[$?]@@"' 1.5; local o2="$(t_clean)"
+    label=$m
+    if [[ $m == agent ]]; then t_start full KIRO_SESSION_ID=test; else t_start "$m"; fi
+    T_OUT=""
+    t_cmd '?; echo "@@H1[$?]@@"' 2; o1="$(t_clean)"; raw="$T_OUT"; T_OUT=""
+    t_cmd 'myzsh-help git; echo "@@H2[$?]@@"' 1.5; o2="$(t_clean)"; T_OUT=""
+    t_cmd '? nope; echo "@@H3[$?]@@"' 1; o3="$(t_clean)"; T_OUT=""
+    t_send '? sys'; t_read 0.4; t_send $'\t'; t_read 1.2; t_send $'\r'; t_read 1.5
+    local comp="$(t_clean)"; unstick; T_OUT=""
+    t_cmd 'print -r -- "@@S""@@"; NO_COLOR=1 myzsh-help; print -r -- "@@E""@@"' 1.5
+    local nc="${${T_OUT#*@@S@@}%%@@E@@*}"
     t_stop
-    [[ "$o1" == *"myzsh cheatsheet"* && "$o1" == *"@@H1[0]@@"* ]]; t_check "T7 $m: ? shows the cheatsheet" $? "$(print -r -- "$o1" | tail -4)"
-    [[ "$o2" == *"git aliases"* && "$o2" == *"@@H2[0]@@"* ]]; t_check "T7 $m: myzsh-help git" $? "$(print -r -- "$o2" | tail -4)"
+    [[ "$o1" == *"myzsh cheatsheet"* && "$o1" == *Keys* && "$o1" == *Aliases* && "$o1" == *Tips* && "$o1" == *"@@H1[0]@@"* ]] &&
+      ! print -r -- "$o1" | grep -aqE "$bad_out"
+    t_check "T7 $label: ? shows the full cheatsheet, no errors" $? "$(print -r -- "$o1" | grep -aE "$bad_out|@@H1" | head -5)"
+    [[ "$raw" == *$'\e[33m'* ]]; t_check "T7 $label: cheatsheet is coloured on a terminal" $?
+    [[ "$nc" == *Keys* && "$nc" != *$'\e['* ]]; t_check "T7 $label: NO_COLOR=1 drops all escapes" $? "$(print -r -- "$nc" | cat -v | head -3)"
+    [[ "$o2" == *"git aliases"* && "$o2" == *"git status -sb"* && "$o2" == *"@@H2[0]@@"* ]]; t_check "T7 $label: myzsh-help git" $? "$(print -r -- "$o2" | tail -4)"
+    [[ "$o3" == *"Unknown group: nope"* && "$o3" == *"@@H3[1]@@"* ]]; t_check "T7 $label: ? <unknown> fails cleanly" $? "$(print -r -- "$o3" | tail -3)"
+    [[ "$comp" == *"system aliases"* ]]; t_check "T7 $label: ? sys + Tab completes to ? system" $? "$(print -r -- "$comp" | tail -3)"
   done
+  # Renders without a terminal, at several widths and in reduced terminals:
+  # exit 0, nothing on stderr, no line wider than COLUMNS, no escapes, and
+  # ASCII only where the terminal can't be trusted with Unicode
+  maxw() { LANG=en_US.UTF-8 /bin/zsh -fc 'local -i m=0; local l; for l in "${(@f)1}"; do (( ${(m)#l} > m )) && m=${(m)#l}; done; print $m' _ "$1"; }
+  print -r -- "alias mine='echo local-mine'" > "$T_DIR/local.zsh"; chmod 600 "$T_DIR/local.zsh"
+  r7() {  # r7 <label> <cols> <ascii 0|1> [env...]
+    local label="$1" cols="$2" ascii="$3"; shift 3
+    local err="$T_ROOT/r7.err"
+    local out="$(/usr/bin/env -i HOME="$HOME" PATH="$T_PATH" LANG=en_US.UTF-8 TERM=xterm-256color MYZSH_DIR="$T_DIR" "$@" \
+      /bin/zsh -fc 'COLUMNS='"$cols"'; fpath=("$MYZSH_DIR/functions" $fpath); autoload -Uz myzsh-help; myzsh-help; print -r -- "@@RC[$?]@@"' </dev/null 2>"$err")"
+    local w=$(maxw "${out%@@RC*}") e="$(<"$err")"
+    local ok=0
+    [[ "$out" == *"@@RC[0]@@"* && -z "$e" && "$out" == *Keys* && "$out" == *Tips* && "$out" == *"mine"* ]] || ok=1
+    (( w <= cols )) || ok=1
+    [[ "$out" == *$'\e'* ]] && ok=1
+    (( ascii )) && [[ "$(print -rn -- "$out" | LC_ALL=C tr -d '\0-\177' | wc -c | tr -d ' ')" != 0 ]] && ok=1
+    t_check "T7 renders: $label (width $w <= $cols)" $ok "$e$(print -r -- "$out" | head -4)"
+  }
+  r7 "160 cols, two columns" 160 0
+  r7 "120 cols, two columns" 120 0
+  r7 "80 cols" 80 0
+  r7 "narrow 40 cols" 40 0
+  r7 "tiny 12 cols" 12 0
+  r7 "TERM=dumb" 80 1 TERM=dumb
+  r7 "NO_COLOR=1" 80 0 NO_COLOR=1
+  r7 "LANG=C" 80 1 LANG=C
+  # Real agent-mode shell (zsh -ic without a tty): loads myzsh, then renders
+  local ao="$(t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} /bin/zsh -ic 'COLUMNS=80; ?; echo "@@RC[$?]@@"; myzsh-help local' </dev/null 2>&1)"
+  local aw=$(maxw "$ao")
+  [[ "$ao" == *"@@RC[0]@@"* && "$ao" == *"agent mode"* && "$ao" == *"local aliases"* && "$ao" == *"echo local-mine"* && "$ao" != *$'\e'* ]] &&
+    (( aw <= 80 )) && ! print -r -- "$ao" | grep -aqE "$bad_out"
+  t_check "T7 agent shell (zsh -ic, no tty): ? and ? local render clean (width $aw)" $? "$(print -r -- "$ao" | head -6)"
+  /bin/rm -f "$T_DIR/local.zsh"
+fi
+# ─── H: every alias highlights as valid ──────────────────────────────
+# zsh-syntax-highlighting shows an alias red when its command is missing;
+# myzsh must only define aliases whose command exists here.
+if want H; then
+  print -r -- "── H: alias highlighting"
+  t_start full; T_OUT=""
+  t_cmd 'local _a _w _bad=(); for _a in ${(k)aliases}; do _w=(${(z)aliases[$_a]}); _w=${(Q)_w[1]}; [[ $_w == *[\$\(]* ]] && continue; whence -- "$_w" >/dev/null || _bad+=("$_a->$_w"); done; print -r -- "@@BAD[${_bad}]@@"' 2
+  local badal="$(t_marker BAD)"; T_OUT=""
+  t_send 'free'; t_read 1.2; local hl="$T_OUT"
+  t_send $'\x15'; t_read 0.3
+  t_stop
+  [[ -z "$badal" ]]; t_check "H every alias's command exists [${badal:-none}]" $?
+  [[ "$hl" == *$'\e[32m'* && "$hl" != *$'\e[31m'* ]]; t_check "H typed alias (free) is highlighted green" $? "$(print -rn -- "$hl" | cat -v | tail -c 120)"
 fi
 
 # ─── S: startup smoke tests ──────────────────────────────────────────
