@@ -27,8 +27,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
   alias brewup='brew update && brew upgrade && brew cleanup'
 fi
 
-# Quick reload
-alias reload='exec zsh'
+# Quick shortcuts
 alias cls='clear'
 
 # Timestamp
@@ -37,5 +36,10 @@ alias ts='date +%s'
 # JSON pretty print
 alias json='python3 -m json.tool'
 
+# myzsh cheatsheet (see functions/myzsh-help)
+alias '?'='myzsh-help'
+
 # ─── Add your own below ──────────────────────────────────────────────
+# Personal or work-specific aliases belong in $MYZSH_DIR/local.zsh
+# (git-ignored, loaded last in every mode), not in this tracked file.
 
