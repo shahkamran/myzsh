@@ -45,9 +45,17 @@ alias disk='df -h | head -8'
 # ─── Process Management ──────────────────────────────────────────────
 alias psg='ps aux | grep -v grep | grep'
 alias top10='ps aux | head -1; ps aux | sed 1d | sort -nr -k 4 | head -10'
-alias ports='lsof -i -n -P | grep LISTEN'
-alias myip='curl -s https://ifconfig.me && echo'
-alias localip='ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null'
+if (( $+commands[lsof] )); then
+  alias ports='lsof -i -n -P | grep LISTEN'
+fi
+if (( $+commands[curl] )); then
+  alias myip='curl -s https://ifconfig.me && echo'
+fi
+if (( $+commands[ipconfig] )); then  # macOS
+  alias localip='ipconfig getifaddr en0'
+elif (( $+commands[hostname] )); then
+  alias localip='hostname -I 2>/dev/null'
+fi
 
 # ─── Search ──────────────────────────────────────────────────────────
 # grep→rg changes option semantics; agents expect real grep
@@ -64,13 +72,15 @@ alias findi='find . -iname'
 alias path='echo $PATH | tr ":" "\n" | sort | uniq'
 alias now='date +"%Y-%m-%d %H:%M:%S"'
 alias week='date +%V'
-alias weather='curl -s "wttr.in/?format=3"'
+if (( $+commands[curl] )); then
+  alias weather='curl -s "wttr.in/?format=3"'
+fi
 
 # ─── Clipboard ───────────────────────────────────────────────────────
-if [[ "$(uname)" == "Darwin" ]]; then
+if (( $+commands[pbcopy] )); then  # macOS
   alias clip='pbcopy'
   alias paste='pbpaste'
-else
+elif (( $+commands[xclip] )); then
   alias clip='xclip -selection clipboard'
   alias paste='xclip -selection clipboard -o'
 fi

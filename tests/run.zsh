@@ -294,10 +294,11 @@ if want T7; then
     local label="$1" cols="$2" ascii="$3"; shift 3
     local err="$T_ROOT/r7.err"
     local out="$(/usr/bin/env -i HOME="$HOME" PATH="$T_PATH" LANG=en_US.UTF-8 TERM=xterm-256color MYZSH_DIR="$T_DIR" "$@" \
-      /bin/zsh -fc 'COLUMNS='"$cols"'; fpath=("$MYZSH_DIR/functions" $fpath); autoload -Uz myzsh-help; myzsh-help; print -r -- "@@RC[$?]@@"' </dev/null 2>"$err")"
+      /bin/zsh -fc 'COLUMNS='"$cols"'; fpath=("$MYZSH_DIR/functions" $fpath); autoload -Uz myzsh-help; myzsh-help && myzsh-help local && myzsh-help git; print -r -- "@@RC[$?]@@"' </dev/null 2>"$err")"
     local w=$(maxw "${out%@@RC*}") e="$(<"$err")"
     local ok=0
-    [[ "$out" == *"@@RC[0]@@"* && -z "$e" && "$out" == *Keys* && "$out" == *Tips* && "$out" == *"mine"* ]] || ok=1
+    [[ "$out" == *"@@RC[0]@@"* && -z "$e" ]] || ok=1
+    (( cols < 12 )) || [[ "$out" == *Keys* && "$out" == *Tips* && "$out" == *"mine"* ]] || ok=1  # below 12 cols labels are cut
     (( w <= cols )) || ok=1
     [[ "$out" == *$'\e'* ]] && ok=1
     (( ascii )) && [[ "$(print -rn -- "$out" | LC_ALL=C tr -d '\0-\177' | wc -c | tr -d ' ')" != 0 ]] && ok=1
@@ -308,9 +309,20 @@ if want T7; then
   r7 "80 cols" 80 0
   r7 "narrow 40 cols" 40 0
   r7 "tiny 12 cols" 12 0
+  r7 "tiny 8 cols" 8 0
+  r7 "tiny 3 cols" 3 0
   r7 "TERM=dumb" 80 1 TERM=dumb
   r7 "NO_COLOR=1" 80 0 NO_COLOR=1
   r7 "LANG=C" 80 1 LANG=C
+  # Wide characters in a local.zsh alias value are cut by display width
+  print -r -- "alias wide='echo 日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語'" >> "$T_DIR/local.zsh"
+  r7 "wide chars in local.zsh, 80 cols" 80 0
+  r7 "wide chars in local.zsh, 40 cols" 40 0
+  # A group turned off in myzsh.conf reads the same on the page and in ? <group>
+  local offo="$(/usr/bin/env -i HOME="$HOME" PATH="$T_PATH" LANG=en_US.UTF-8 TERM=dumb MYZSH_DIR="$T_DIR" \
+    /bin/zsh -fc 'COLUMNS=120; MYZSH_ALIASES=(git); fpath=("$MYZSH_DIR/functions" $fpath); autoload -Uz myzsh-help; myzsh-help; myzsh-help docker' </dev/null 2>&1)"
+  [[ "$offo" == *"docker"*"off / enable in myzsh.conf"*"docker aliases"*"off / enable in myzsh.conf"* ]]
+  t_check "T7 disabled group: same 'off' wording on the page and in ? docker" $? "$(print -r -- "$offo" | grep -a -i 'docker' | head -4)"
   # Real agent-mode shell (zsh -ic without a tty): loads myzsh, then renders
   local ao="$(t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} /bin/zsh -ic 'COLUMNS=80; ?; echo "@@RC[$?]@@"; myzsh-help local' </dev/null 2>&1)"
   local aw=$(maxw "$ao")
@@ -321,11 +333,14 @@ if want T7; then
 fi
 # ─── H: every alias highlights as valid ──────────────────────────────
 # zsh-syntax-highlighting shows an alias red when its command is missing;
-# myzsh must only define aliases whose command exists here.
+# myzsh must only define aliases whose command exists here. Shortcuts for
+# toolchains the user chooses to install (git, npm, python3, pip3) are
+# defined regardless, so they are not checked; everything else must be
+# gated on its tool, which keeps this check valid on macOS and Linux.
 if want H; then
   print -r -- "── H: alias highlighting"
   t_start full; T_OUT=""
-  t_cmd 'local _a _w _bad=(); for _a in ${(k)aliases}; do _w=(${(z)aliases[$_a]}); _w=${(Q)_w[1]}; [[ $_w == *[\$\(]* ]] && continue; whence -- "$_w" >/dev/null || _bad+=("$_a->$_w"); done; print -r -- "@@BAD[${_bad}]@@"' 2
+  t_cmd 'local _a _w _bad=(); for _a in ${(k)aliases}; do _w=(${(z)aliases[$_a]}); _w=${(Q)_w[1]}; [[ $_w == *[\$\(]* || $_w == (git|npm|python3|pip3) ]] && continue; whence -- "$_w" >/dev/null || _bad+=("$_a->$_w"); done; print -r -- "@@BAD[${_bad}]@@"' 2
   local badal="$(t_marker BAD)"; T_OUT=""
   t_send 'free'; t_read 1.2; local hl="$T_OUT"
   t_send $'\x15'; t_read 0.3

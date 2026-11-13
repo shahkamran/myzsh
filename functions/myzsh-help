@@ -6,7 +6,7 @@
 #
 # Aliases and functions are read from the files at run time, so the page
 # follows your setup; keys and tips are curated. It never pages or prompts,
-# fits $COLUMNS (two columns from 110), and drops colour for NO_COLOR, dumb
+# fits $COLUMNS from 3 up (two columns from 110), and drops colour for NO_COLOR, dumb
 # terminals and pipes, and Unicode for non-UTF-8 locales.
 emulate -L zsh
 setopt extended_glob
@@ -19,17 +19,23 @@ local c0= cB= cH= cK= cF= cM=
 if [[ -t 1 && -z "${NO_COLOR-}" && "$TERM" != (dumb|) ]]; then
   c0=$'\e[0m' cB=$'\e[1m' cH=$'\e[36m' cK=$'\e[33m' cF=$'\e[32m' cM=$'\e[90m'
 fi
-local rule=- thick== ell='~' dot=/ up=Up dn=Down lt=Left rt=Right
+local rule=- thick== ell='~' dot=/ up=Up dn=Down lt=Left rt=Right asc=1
 if [[ "$TERM" != dumb && "${LC_ALL:-${LC_CTYPE:-$LANG}}" == (#i)*utf(-|)8* ]]; then
-  rule=─ thick=━ ell=… dot=· up=↑ dn=↓ lt=← rt=→
+  rule=─ thick=━ ell=… dot=· up=↑ dn=↓ lt=← rt=→ asc=
 fi
 
 {
-  # _myzsh_help_fit <text> <width> [pad]: cut to width (with ellipsis)
+  # _myzsh_help_fit <text> <width> [pad]: cut to display width (with
+  # ellipsis); wide characters (CJK, emoji) count as two columns
   _myzsh_help_fit() {
     local s="$1"; local -i n=$2
     (( n > 0 )) || { REPLY=""; return; }
-    (( ${(m)#s} > n )) && s="${s[1,n-1]}$ell"
+    [[ -n $asc ]] && s="${s//[^ -~]/?}"  # e.g. emoji in an alias value
+    if (( ${(m)#s} > n )); then
+      s="${s[1,n-1]}"
+      while (( ${(m)#s} > n - 1 )); do s="${s[1,-2]}"; done
+      s+="$ell"
+    fi
     if [[ -n "$3" ]]; then REPLY="${(mr:n:)s}"; else REPLY="$s"; fi
   }
   # _myzsh_help_cell <record> <width> [pad]: one formatted cell in REPLY.
@@ -81,11 +87,13 @@ fi
   }
   # _myzsh_help_print <records...>: one column, as wide as fits
   _myzsh_help_print() {
-    local -i cw=$(( W - 2 )); (( cw > 100 )) && cw=100; (( cw < 10 )) && cw=10
+    local -i cw=$(( W - 2 )); (( cw > 100 )) && cw=100; (( cw < 1 )) && cw=1
     local r; for r in "$@"; do _myzsh_help_cell "$r" $cw; print -r -- "  $REPLY"; done
   }
 
-  local -a groups=("$MYZSH"/aliases/*.zsh(N:t:r) local) own
+  local -a groups=("$MYZSH"/aliases/*.zsh(N:t:r) local) own enabled=("${MYZSH_ALIASES[@]}")
+  # Why a group shows no aliases; the same words on the page and in ? <group>
+  local off="off $dot enable in myzsh.conf" unloaded="not loaded $dot needs its tool"
 
   # ─── ? <group>: one alias group in full ─────────────────────────────
   if [[ "$group" != all ]]; then
@@ -102,7 +110,11 @@ fi
       about="${${about##[^[:alnum:]]#}%%[^[:alnum:]!.)]#}"
     fi
     _myzsh_help_parse "$file"
-    (( ${#aliases} && ! ${#own} )) && [[ $group != local ]] && about+=" $dot not loaded in this shell"
+    if [[ $group != local ]] && (( ${#enabled} && ! ${enabled[(Ie)$group]} )); then
+      about+=" $dot $off"
+    elif [[ $group != local ]] && (( ${#aliases} && ! ${#own} )); then
+      about+=" $dot $unloaded"
+    fi
     print ""
     _myzsh_help_print "H$group aliases" "N${about}"
     (( ${#reply} )) || reply=("Nnone yet $dot add them to ${(D)MYZSH}/local.zsh")
@@ -147,7 +159,7 @@ fi
     R+=("F${f:t}"$'\t'"${${first#\#}# }")
   done
   R+=("" "HAliases $dot ? <group> for all")
-  local g; local -a names enabled=("${MYZSH_ALIASES[@]}")
+  local g; local -a names
   for g in "${groups[@]}"; do
     if [[ $g == local ]]; then _myzsh_help_parse "$MYZSH/local.zsh"
     else _myzsh_help_parse "$MYZSH/aliases/$g.zsh"; fi
@@ -157,11 +169,11 @@ fi
     (( ${#aliases} )) && [[ $g != local ]] && names=(${(u)own})
     [[ $g == local ]] && names+=(${=${${(M)reply:#N*}#N}})
     if [[ $g != local ]] && (( ${#enabled} && ! ${enabled[(Ie)$g]} )); then
-      R+=("K$g"$'\t'"off $dot enable in myzsh.conf")
+      R+=("K$g"$'\t'"$off")
     elif [[ $g == local ]] && (( ! ${#names} )); then
       R+=("K$g"$'\t'"none yet $dot add yours to local.zsh")
     elif (( ! ${#names} )); then
-      R+=("K$g"$'\t'"not loaded $dot needs its tool")
+      R+=("K$g"$'\t'"$unloaded")
     else
       R+=("K$g (${#names})"$'\t'"${(j: :)names}")
     fi
@@ -185,7 +197,7 @@ fi
   if (( W >= 110 )); then
     two=1; cw=$(( (W - 4) / 2 )); (( cw > 66 )) && cw=66; tw=$(( cw * 2 + 2 ))
   else
-    cw=$(( W - 2 )); (( cw > 100 )) && cw=100; (( cw < 10 )) && cw=10; tw=$cw
+    cw=$(( W - 2 )); (( cw > 100 )) && cw=100; (( cw < 1 )) && cw=1; tw=$cw
   fi
   local title="myzsh cheatsheet"
   print ""

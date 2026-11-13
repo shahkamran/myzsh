@@ -23,7 +23,7 @@ alias venv='python3 -m venv .venv && source .venv/bin/activate'
 alias activate='source .venv/bin/activate'
 
 # Homebrew (macOS)
-if [[ "$(uname)" == "Darwin" ]]; then
+if (( $+commands[brew] )); then
   alias brewup='brew update && brew upgrade && brew cleanup'
 fi
 
