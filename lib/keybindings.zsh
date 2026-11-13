@@ -49,6 +49,7 @@ bindkey '^K'    kill-line               # Ctrl+K (delete to end)
 # History
 bindkey '^R'    history-incremental-search-backward  # Ctrl+R
 bindkey '^S'    history-incremental-search-forward   # Ctrl+S
+unsetopt FLOW_CONTROL  # let Ctrl+S/Ctrl+Q reach zsh instead of pausing output
 
 # Editing
 bindkey '^L'    clear-screen            # Ctrl+L

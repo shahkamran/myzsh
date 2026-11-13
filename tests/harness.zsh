@@ -15,6 +15,16 @@ typeset -g  T_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 [[ -d /opt/homebrew/bin ]] && T_PATH="$T_PATH:/opt/homebrew/bin"
 typeset -g  T_KIRO_RC=""
 typeset -ga T_FAILED=()
+# The zsh under test, and a UTF-8 locale this host really has (many Linux
+# images only generate C.UTF-8); empty T_UTF8 means none, width checks skip
+typeset -g  T_ZSH=/bin/zsh T_UTF8=""
+[[ -x "$T_ZSH" ]] || T_ZSH="${commands[zsh]:-zsh}"
+() {
+  local l
+  for l in en_US.UTF-8 C.UTF-8 C.utf8 ${(M)${(f)"$(locale -a 2>/dev/null)"}:#*[Uu][Tt][Ff]*8}; do
+    LC_ALL="$l" "$T_ZSH" -fc '(( ${#${:-━}} == 1 ))' 2>/dev/null && { T_UTF8="$l"; return; }
+  done
+}
 
 # ─── Results ─────────────────────────────────────────────────────────
 t_pass() { (( T_PASS++ )); print -r -- "PASS  $1"; }
@@ -56,7 +66,7 @@ t_prepare() {
 
   /bin/mkdir -p "$T_ROOT"/{zd,kzd,cache,data,bin} \
     "$T_ROOT/work/capabilities" "$T_ROOT/work/CapabilitiesNotifierForNCL"
-  ln -s /bin/zsh "$T_ROOT/bin/kiro-cli"
+  ln -s "$T_ZSH" "$T_ROOT/bin/kiro-cli"
   # Menu fixture: 12 long names → a multi-row, multi-column completion menu
   local i
   for i in {01..12}; do /bin/mkdir -p "$T_ROOT/menu/capabilities-module-$i"; done
@@ -95,8 +105,8 @@ t_conf() {
 #   kiro  — Kiro IDE terminal with Kiro's real shell integration
 #   plain — no TERM_PROGRAM at all
 t_env() {
-  local -a e=(HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL=/bin/zsh
-              PATH="$T_PATH" TERM=xterm-256color LANG=en_US.UTF-8
+  local -a e=(HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$T_ZSH"
+              PATH="$T_PATH" TERM=xterm-256color LANG="${T_UTF8:-C}"
               XDG_CACHE_HOME="$T_ROOT/cache" XDG_DATA_HOME="$T_ROOT/data")
   case "$1" in
     full)  e+=(TERM_PROGRAM=Apple_Terminal ZDOTDIR="$T_ROOT/zd") ;;
@@ -120,7 +130,7 @@ t_notty() {
 t_start() {
   local mode="$1"; shift
   local -a envv=("${(@f)$(t_env "$mode")}" "$@")
-  local -a cmd=(${(z)${T_SHELL:-/bin/zsh -i}})
+  local -a cmd=(${(z)${T_SHELL:-$T_ZSH -i}})
   zpty -d T_S 2>/dev/null
   zpty T_S "/usr/bin/env -i ${(j: :)${(q)envv[@]}} ${(j: :)cmd}"
   T_OUT=""

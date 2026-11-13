@@ -52,11 +52,11 @@ if want T1; then
   if [[ -n "$T_KIRO_RC" ]]; then t1_case "kiro IDE terminal" kiro; else t_skip "T1 kiro IDE terminal" "kiro not installed"; fi
   t1_case "KIRO_SESSION_ID set" full KIRO_SESSION_ID=test
   t1_case "CLAUDECODE=1" full CLAUDECODE=1
-  T_SHELL="$T_ROOT/bin/kiro-cli -fc '/bin/zsh -i; :'" t1_case "parent process kiro-cli" full
+  T_SHELL="$T_ROOT/bin/kiro-cli -fc '$T_ZSH -i; :'" t1_case "parent process kiro-cli" full
   unset T_SHELL
 
   # Piped stdin (agent runs `... | zsh -i`): must not stop for an answer
-  out=$(print -r -- 'gti --version; echo @@DONE' | t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} /bin/zsh -i 2>&1)
+  out=$(print -r -- 'gti --version; echo @@DONE' | t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} $T_ZSH -i 2>&1)
   local rc=$?
   if [[ "$out" == *"correct 'gti'"* || $rc == 142 ]]; then
     t_fail "T1 piped stdin, no tty: no correction prompt (rc=$rc)" "$(print -r -- "$out" | grep -a correct)"
@@ -172,7 +172,7 @@ if want T4; then
 
   # Agent tools that run `zsh -ic` without a terminal (Kiro CLI, others)
   local out
-  out="$(t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} /bin/zsh -ic 'echo hello-marker; false' </dev/null 2>/dev/null)"
+  out="$(t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} $T_ZSH -ic 'echo hello-marker; false' </dev/null 2>/dev/null)"
   local rc=$?
   [[ "$out" == "hello-marker" ]]; t_check "T4 zsh -ic without a tty: stdout is exactly the command output" $? "$(print -r -- "$out" | cat -v | head -8)"
   (( rc == 1 )); t_check "T4 zsh -ic without a tty: exit status preserved (rc=$rc)" $?
@@ -271,6 +271,8 @@ if want T7; then
     t_cmd '?; echo "@@H1[$?]@@"' 2; o1="$(t_clean)"; raw="$T_OUT"; T_OUT=""
     t_cmd 'myzsh-help git; echo "@@H2[$?]@@"' 1.5; o2="$(t_clean)"; T_OUT=""
     t_cmd '? nope; echo "@@H3[$?]@@"' 1; o3="$(t_clean)"; T_OUT=""
+    t_cmd 'REPLY=keep; match=(m1); ? >/dev/null; print -r -- "@@LK[$REPLY.$match.${options[flowcontrol]}]@@"' 1.5
+    local lk="$(t_marker LK)"; T_OUT=""
     t_send '? sys'; t_read 0.4; t_send $'\t'; t_read 1.2; t_send $'\r'; t_read 1.5
     local comp="$(t_clean)"; unstick; T_OUT=""
     t_cmd 'print -r -- "@@S""@@"; NO_COLOR=1 myzsh-help; print -r -- "@@E""@@"' 1.5
@@ -284,22 +286,29 @@ if want T7; then
     [[ "$o2" == *"git aliases"* && "$o2" == *"git status -sb"* && "$o2" == *"@@H2[0]@@"* ]]; t_check "T7 $label: myzsh-help git" $? "$(print -r -- "$o2" | tail -4)"
     [[ "$o3" == *"Unknown group: nope"* && "$o3" == *"@@H3[1]@@"* ]]; t_check "T7 $label: ? <unknown> fails cleanly" $? "$(print -r -- "$o3" | tail -3)"
     [[ "$comp" == *"system aliases"* ]]; t_check "T7 $label: ? sys + Tab completes to ? system" $? "$(print -r -- "$comp" | tail -3)"
+    [[ "$lk" == keep.m1.off ]]; t_check "T7 $label: ? leaves REPLY/match alone; Ctrl+S not eaten by flow control [$lk]" $?
+    # The 'private' tip only where history ignores space-led lines (not agent mode)
+    local hs=1; [[ $m == full ]] && hs=0
+    [[ "$o1" == *"start with a space"* ]]; (( $? == hs )); t_check "T7 $label: 'private' tip only when history is on" $?
   done
   # Renders without a terminal, at several widths and in reduced terminals:
   # exit 0, nothing on stderr, no line wider than COLUMNS, no escapes, and
   # ASCII only where the terminal can't be trusted with Unicode
-  maxw() { LANG=en_US.UTF-8 /bin/zsh -fc 'local -i m=0; local l; for l in "${(@f)1}"; do (( ${(m)#l} > m )) && m=${(m)#l}; done; print $m' _ "$1"; }
+  maxw() { LC_ALL="${T_UTF8:-C}" $T_ZSH -fc 'local -i m=0; local l; for l in "${(@f)1}"; do (( ${(m)#l} > m )) && m=${(m)#l}; done; print $m' _ "$1"; }
   print -r -- "alias mine='echo local-mine'" > "$T_DIR/local.zsh"; chmod 600 "$T_DIR/local.zsh"
   r7() {  # r7 <label> <cols> <ascii 0|1> [env...]
     local label="$1" cols="$2" ascii="$3"; shift 3
+    [[ -n "$T_UTF8" ]] || { t_skip "T7 renders: $label" "no UTF-8 locale on this host"; return; }
     local err="$T_ROOT/r7.err"
-    local out="$(/usr/bin/env -i HOME="$HOME" PATH="$T_PATH" LANG=en_US.UTF-8 TERM=xterm-256color MYZSH_DIR="$T_DIR" "$@" \
-      /bin/zsh -fc 'COLUMNS='"$cols"'; fpath=("$MYZSH_DIR/functions" $fpath); autoload -Uz myzsh-help; myzsh-help && myzsh-help local && myzsh-help git; print -r -- "@@RC[$?]@@"' </dev/null 2>"$err")"
+    local out="$(/usr/bin/env -i HOME="$HOME" PATH="$T_PATH" LANG="${T_UTF8:-C}" TERM=xterm-256color MYZSH_DIR="$T_DIR" "$@" \
+      $T_ZSH -fc 'COLUMNS='"$cols"'; fpath=("$MYZSH_DIR/functions" $fpath); autoload -Uz myzsh-help; myzsh-help && myzsh-help local && myzsh-help git; print -r -- "@@RC[$?]@@"' </dev/null 2>"$err")"
     local w=$(maxw "${out%@@RC*}") e="$(<"$err")"
     local ok=0
     [[ "$out" == *"@@RC[0]@@"* && -z "$e" ]] || ok=1
     (( cols < 12 )) || [[ "$out" == *Keys* && "$out" == *Tips* && "$out" == *"mine"* ]] || ok=1  # below 12 cols labels are cut
     (( w <= cols )) || ok=1
+    # Nothing sourced here, so groups list their files' aliases (no misleading reason)
+    (( cols < 40 )) || [[ "$out" == *"git ("* && "$out" != *"needs its tool"* && "$out" != *"enable in myzsh.conf"* ]] || ok=1
     [[ "$out" == *$'\e'* ]] && ok=1
     (( ascii )) && [[ "$(print -rn -- "$out" | LC_ALL=C tr -d '\0-\177' | wc -c | tr -d ' ')" != 0 ]] && ok=1
     t_check "T7 renders: $label (width $w <= $cols)" $ok "$e$(print -r -- "$out" | head -4)"
@@ -314,19 +323,20 @@ if want T7; then
   r7 "TERM=dumb" 80 1 TERM=dumb
   r7 "NO_COLOR=1" 80 0 NO_COLOR=1
   r7 "LANG=C" 80 1 LANG=C
+  r7 "locale named UTF-8 but not installed" 80 1 LANG=xx_XX.UTF-8
   # Wide characters in a local.zsh alias value are cut by display width
   print -r -- "alias wide='echo 日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語日本語'" >> "$T_DIR/local.zsh"
   r7 "wide chars in local.zsh, 80 cols" 80 0
   r7 "wide chars in local.zsh, 40 cols" 40 0
   # A group turned off in myzsh.conf reads the same on the page and in ? <group>
-  local offo="$(/usr/bin/env -i HOME="$HOME" PATH="$T_PATH" LANG=en_US.UTF-8 TERM=dumb MYZSH_DIR="$T_DIR" \
-    /bin/zsh -fc 'COLUMNS=120; MYZSH_ALIASES=(git); fpath=("$MYZSH_DIR/functions" $fpath); autoload -Uz myzsh-help; myzsh-help; myzsh-help docker' </dev/null 2>&1)"
+  local offo="$(/usr/bin/env -i HOME="$HOME" PATH="$T_PATH" LANG="${T_UTF8:-C}" TERM=dumb MYZSH_DIR="$T_DIR" \
+    $T_ZSH -fc 'COLUMNS=120; MYZSH_ALIASES=(git); fpath=("$MYZSH_DIR/functions" $fpath); autoload -Uz myzsh-help; myzsh-help; myzsh-help docker' </dev/null 2>&1)"
   [[ "$offo" == *"docker"*"off / enable in myzsh.conf"*"docker aliases"*"off / enable in myzsh.conf"* ]]
   t_check "T7 disabled group: same 'off' wording on the page and in ? docker" $? "$(print -r -- "$offo" | grep -a -i 'docker' | head -4)"
   # Real agent-mode shell (zsh -ic without a tty): loads myzsh, then renders
-  local ao="$(t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} /bin/zsh -ic 'COLUMNS=80; ?; echo "@@RC[$?]@@"; myzsh-help local' </dev/null 2>&1)"
+  local ao="$(t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} $T_ZSH -ic 'COLUMNS=80; ?; echo "@@RC[$?]@@"; myzsh-help local' </dev/null 2>&1)"
   local aw=$(maxw "$ao")
-  [[ "$ao" == *"@@RC[0]@@"* && "$ao" == *"agent mode"* && "$ao" == *"local aliases"* && "$ao" == *"echo local-mine"* && "$ao" != *$'\e'* ]] &&
+  [[ "$ao" == *"@@RC[0]@@"* && "$ao" == *"agent mode"* && "$ao" == *"git ("* && "$ao" == *"local aliases"* && "$ao" == *"echo local-mine"* && "$ao" != *$'\e'* ]] &&
     (( aw <= 80 )) && ! print -r -- "$ao" | grep -aqE "$bad_out"
   t_check "T7 agent shell (zsh -ic, no tty): ? and ? local render clean (width $aw)" $? "$(print -r -- "$ao" | head -6)"
   /bin/rm -f "$T_DIR/local.zsh"
@@ -363,9 +373,9 @@ if want S; then
   s_case "external terminal (full)" full
   s_case "no TERM_PROGRAM (full)" plain
   if [[ -n "$T_KIRO_RC" ]]; then s_case "kiro IDE terminal" kiro; else t_skip "S kiro" "kiro not installed"; fi
-  T_SHELL="$T_ROOT/bin/kiro-cli -fc '/bin/zsh -i; :'" s_case "under kiro-cli parent" full; unset T_SHELL
+  T_SHELL="$T_ROOT/bin/kiro-cli -fc '$T_ZSH -i; :'" s_case "under kiro-cli parent" full; unset T_SHELL
 
-  local out="$(t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} /bin/zsh -ic 'echo "@@UP[ok]@@"' </dev/null 2>&1)"
+  local out="$(t_notty 8 /usr/bin/env -i ${(f)"$(t_env full)"} $T_ZSH -ic 'echo "@@UP[ok]@@"' </dev/null 2>&1)"
   [[ -z "$(bad_startup "$out")" && "$out" == "@@UP[ok]@@" ]]; t_check "S zsh -ic without a tty: clean" $? "$(print -r -- "$out" | head -5)"
 
   t_conf MYZSH_NERD_FONTS false; s_case "MYZSH_NERD_FONTS=false" full; t_conf MYZSH_NERD_FONTS true
@@ -400,7 +410,7 @@ if want U; then
   local u="$T_ROOT/unit"; /bin/mkdir -p "$u"
   print 'typeset -g U_OK=1' > "$u/good.zsh"; chmod 600 "$u/good.zsh"
   print 'typeset -g U_BAD=1' > "$u/bad.zsh";  chmod 666 "$u/bad.zsh"
-  local r="$(MYZSH_DIR="$u" MYZSH_STRICT_PERMISSIONS=true /bin/zsh -fc '
+  local r="$(MYZSH_DIR="$u" MYZSH_STRICT_PERMISSIONS=true $T_ZSH -fc '
     source '"${(q)T_DIR}"'/lib/security.zsh
     myzsh-safe-source '"${(q)u}"'/good.zsh true; a=$?
     myzsh-safe-source '"${(q)u}"'/bad.zsh true 2>/dev/null; b=$?
@@ -416,7 +426,7 @@ if want U; then
   done
   print 'typeset -g U_T1=1' > "$u/t1.zsh"; print 'typeset -g U_T2=1' > "$u/t2.zsh"; chmod 600 "$u"/t*.zsh
   print -r -- "$u/t1.zsh:deadbeef"$'\n'"$u/t2.zsh:deadbeef" > "$u/myzsh.lock"; chmod 600 "$u/myzsh.lock"
-  r="$(/usr/bin/env -i HOME="$HOME" PATH="$nh" MYZSH_DIR="$u" MYZSH_VERIFY_PLUGINS=true /bin/zsh -fc '
+  r="$(/usr/bin/env -i HOME="$HOME" PATH="$nh" MYZSH_DIR="$u" MYZSH_VERIFY_PLUGINS=true $T_ZSH -fc '
     source '"${(q)T_DIR}"'/lib/security.zsh
     myzsh-safe-source '"${(q)u}"'/t1.zsh 2>>'"${(q)u}"'/err
     myzsh-safe-source '"${(q)u}"'/t2.zsh 2>>'"${(q)u}"'/err
@@ -425,14 +435,14 @@ if want U; then
   [[ "$r" == "11:1:1:2" ]]; t_check "U no sha256 tool: files load, 1 warning, lockfile kept [$r]" $?
   # myzsh-update-lock prints only its own status lines (no stray hash=...)
   /bin/mkdir -p "$u/themes" && print '#' > "$u/themes/a.zsh-theme" && print '#' > "$u/themes/b.zsh-theme"
-  r="$(MYZSH_DIR="$u" MYZSH_LOCKFILE="$u/myzsh.lock" /bin/zsh -fc '
+  r="$(MYZSH_DIR="$u" MYZSH_LOCKFILE="$u/myzsh.lock" $T_ZSH -fc '
     source '"${(q)T_DIR}"'/lib/security.zsh; myzsh-update-lock' 2>&1)"
   [[ "$r" != *"hash="* && "$r" == *"Locked 2 files"* ]]; t_check "U update-lock: no stray output" $? "$r"
   # Update banner: stale flag clears when up to date; box is aligned when behind
   local g="$T_ROOT/upd"; /bin/mkdir -p "$g/cache"
   git -C "$g" init -q && git -C "$g" -c user.name=t -c user.email=t@t commit -q --allow-empty -m a &&
     git -C "$g" update-ref refs/remotes/origin/main HEAD
-  ub() { MYZSH_DIR="$g" MYZSH_CACHE="$g/cache" MYZSH_AUTO_UPDATE_CHECK=false LANG=en_US.UTF-8 /bin/zsh -fc '
+  ub() { MYZSH_DIR="$g" MYZSH_CACHE="$g/cache" MYZSH_AUTO_UPDATE_CHECK=false LANG="${T_UTF8:-C}" $T_ZSH -fc '
     source '"${(q)T_DIR}"'/lib/update-check.zsh' 2>&1 | sed $'s/\e\\[[0-9;]*m//g'; }
   print 5 > "$g/cache/.update-available"; r="$(ub)"
   [[ -z "$r" && ! -e "$g/cache/.update-available" ]]; t_check "U stale update notice cleared when up to date" $? "$r"
@@ -440,7 +450,7 @@ if want U; then
     git -C "$g" update-ref refs/remotes/origin/main HEAD && git -C "$g" reset -q --hard HEAD~1
   print 5 > "$g/cache/.update-available"; r="$(ub)"
   local -a w=(); local l
-  for l in "${(@f)r}"; do [[ -n "$l" ]] && w+=$(LANG=en_US.UTF-8 /bin/zsh -fc 'print ${(m)#1}' _ "$l"); done
+  for l in "${(@f)r}"; do [[ -n "$l" ]] && w+=$(LANG="${T_UTF8:-C}" $T_ZSH -fc 'print ${(m)#1}' _ "$l"); done
   [[ "$r" == *"1 new commit(s)"* && ${#w} == 6 && ${#${(u)w}} == 1 ]]; t_check "U update banner: live count, aligned box [widths: $w]" $? "$r"
 fi
 

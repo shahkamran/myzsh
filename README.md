@@ -358,6 +358,8 @@ curl -s "wttr.in/${1:-}"
 
 Create `~/.myzsh/local.zsh` for machine-specific settings that shouldn't be tracked by git. Personal or work-specific aliases and functions belong here too, not in `aliases/custom.zsh`. It's git-ignored, loaded last (so it overrides framework aliases), and loaded in both full and agent mode. Keep it free of prompts and terminal escape sequences, so agent shells stay clean.
 
+Some alias groups only define an alias when its tool is installed (docker, `lsof`, `curl`, `xclip`, `brew`, …), and they check before `local.zsh` runs. Put `PATH` changes in `~/.zshenv` or `~/.zprofile` rather than `local.zsh`, so tools installed in your own directories (Linuxbrew, a rootless docker install) keep their aliases.
+
 ### Agent / IDE Mode
 
 myzsh switches to a lean, prompt-free **agent mode** when it detects:

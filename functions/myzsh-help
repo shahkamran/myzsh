@@ -8,9 +8,11 @@
 # follows your setup; keys and tips are curated. It never pages or prompts,
 # fits $COLUMNS from 3 up (two columns from 110), and drops colour for NO_COLOR, dumb
 # terminals and pipes, and Unicode for non-UTF-8 locales.
+local hide=; [[ -o hist_ignore_space ]] && hide=1  # before emulate resets it
 emulate -L zsh
 setopt extended_glob
 local group="${1:-all}" MYZSH="${MYZSH_DIR:-$HOME/.myzsh}"
+local REPLY; local -a reply match mbegin mend  # keep the helpers' globals here
 local -i W=80 KW=16
 [[ "$COLUMNS" == <1-> ]] && W=$COLUMNS
 
@@ -20,7 +22,10 @@ if [[ -t 1 && -z "${NO_COLOR-}" && "$TERM" != (dumb|) ]]; then
   c0=$'\e[0m' cB=$'\e[1m' cH=$'\e[36m' cK=$'\e[33m' cF=$'\e[32m' cM=$'\e[90m'
 fi
 local rule=- thick== ell='~' dot=/ up=Up dn=Down lt=Left rt=Right asc=1
-if [[ "$TERM" != dumb && "${LC_ALL:-${LC_CTYPE:-$LANG}}" == (#i)*utf(-|)8* ]]; then
+# ...and only if zsh really counts characters (the locale may be named
+# UTF-8 but not exist, e.g. LC_CTYPE=UTF-8 forwarded over SSH to Linux)
+if [[ "$TERM" != dumb && "${LC_ALL:-${LC_CTYPE:-$LANG}}" == (#i)*utf(-|)8* ]] &&
+   [[ -o multibyte ]] && (( ${#${:-━}} == 1 )); then
   rule=─ thick=━ ell=… dot=· up=↑ dn=↓ lt=← rt=→ asc=
 fi
 
@@ -91,7 +96,10 @@ fi
     local r; for r in "$@"; do _myzsh_help_cell "$r" $cw; print -r -- "  $REPLY"; done
   }
 
-  local -a groups=("$MYZSH"/aliases/*.zsh(N:t:r) local) own enabled=("${MYZSH_ALIASES[@]}")
+  local -a groups=("$MYZSH"/aliases/*.zsh(N:t:r) local) own enabled=(${MYZSH_ALIASES[@]})
+  # In a myzsh shell, list what each group defines now; elsewhere (a script,
+  # zsh -f) nothing was sourced, so list what its file defines
+  local -i live=${+functions[myzsh-safe-source]}
   # Why a group shows no aliases; the same words on the page and in ? <group>
   local off="off $dot enable in myzsh.conf" unloaded="not loaded $dot needs its tool"
 
@@ -112,7 +120,7 @@ fi
     _myzsh_help_parse "$file"
     if [[ $group != local ]] && (( ${#enabled} && ! ${enabled[(Ie)$group]} )); then
       about+=" $dot $off"
-    elif [[ $group != local ]] && (( ${#aliases} && ! ${#own} )); then
+    elif [[ $group != local ]] && (( live && ! ${#own} )); then
       about+=" $dot $unloaded"
     fi
     print ""
@@ -166,7 +174,7 @@ fi
     names=(${${(M)reply:#K*}%%$'\t'*}); names=(${names#K})
     # In a live shell list only what this group defines now (tool checks,
     # agent mode, names another group or local.zsh took over)
-    (( ${#aliases} )) && [[ $g != local ]] && names=(${(u)own})
+    (( live )) && [[ $g != local ]] && names=(${(u)own})
     [[ $g == local ]] && names+=(${=${${(M)reply:#N*}#N}})
     if [[ $g != local ]] && (( ${#enabled} && ! ${enabled[(Ie)$g]} )); then
       R+=("K$g"$'\t'"$off")
@@ -186,7 +194,7 @@ fi
     "Kagent mode"$'\t'"IDE/AI shells: lean, no prompts"
     "Kforce a mode"$'\t'"MYZSH_FORCE_INTERACTIVE=1 / MYZSH_AGENT_MODE=1"
     "Kjump dirs"$'\t'"type a dir to cd $dot d, then 1-5")
-  [[ "$MYZSH_HIST_IGNORE_SPACE" == true ]] && R+=("Kprivate"$'\t'"start with a space: not saved in history")
+  [[ -n $hide ]] && R+=("Kprivate"$'\t'"start with a space: not saved in history")
   R+=("Kred command"$'\t'"not found; check spelling or install it"
     "Kany tool"$'\t'"cheat <cmd>, e.g. cheat tar")
 
