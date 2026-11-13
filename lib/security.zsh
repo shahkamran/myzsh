@@ -125,9 +125,9 @@ myzsh-update-lock() {
   fi
   : > "$MYZSH_LOCKFILE"
 
-  local count=0
+  # Declare once: re-running `local hash` on a set variable prints it
+  local count=0 hash plugin_file theme_file
   for plugin_file in "$MYZSH_DIR"/plugins/**/*.plugin.zsh(N); do
-    local hash
     hash=$(_myzsh_sha256 "$plugin_file")
     echo "${plugin_file}:${hash}" >> "$MYZSH_LOCKFILE"
     ((count++))
@@ -135,7 +135,6 @@ myzsh-update-lock() {
 
   # Also hash theme files
   for theme_file in "$MYZSH_DIR"/themes/**/*.zsh-theme(N); do
-    local hash
     hash=$(_myzsh_sha256 "$theme_file")
     echo "${theme_file}:${hash}" >> "$MYZSH_LOCKFILE"
     ((count++))

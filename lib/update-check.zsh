@@ -65,15 +65,21 @@ _myzsh_check_for_updates() {
 # ─── Show update banner (if updates available) ────────────────────────
 _myzsh_show_update_banner() {
   if [[ -f "$MYZSH_CACHE/.update-available" ]]; then
-    local behind
+    local behind live
     behind=$(cat "$MYZSH_CACHE/.update-available" 2>/dev/null)
-
+    # Re-count against local refs (no network): a stale flag clears itself
+    live=$(git -C "$MYZSH_DIR" rev-list --count HEAD..origin/main 2>/dev/null)
+    if [[ "$live" == <-> ]]; then
+      (( live == 0 )) && { command rm -f "$MYZSH_CACHE/.update-available"; return 0; }
+      behind=$live
+    fi
+    local msg="${behind} new commit(s)"
     echo ""
     print -P "%F{yellow}╭──────────────────────────────────────────────────╮%f"
-    print -P "%F{yellow}│%f  🔄 %F{white}myzsh update available%f — ${behind} new commit(s)     %F{yellow}│%f"
+    print -P "%F{yellow}│%f  🔄 %F{white}myzsh update available%f — ${(r:20:)msg}%F{yellow}│%f"
     print -P "%F{yellow}│%f                                                  %F{yellow}│%f"
-    print -P "%F{yellow}│%f  Run %F{cyan}myzsh-update%f to update                    %F{yellow}│%f"
-    print -P "%F{yellow}│%f  Run %F{240}myzsh-update-dismiss%f to dismiss this       %F{yellow}│%f"
+    print -P "%F{yellow}│%f  Run %F{cyan}myzsh-update%f to update                      %F{yellow}│%f"
+    print -P "%F{yellow}│%f  Run %F{240}myzsh-update-dismiss%f to dismiss this        %F{yellow}│%f"
     print -P "%F{yellow}╰──────────────────────────────────────────────────╯%f"
     echo ""
   fi

@@ -333,7 +333,7 @@ if want U; then
 
   # No sha256 tool at all: locked files still load (one warning), and
   # myzsh-update-lock refuses without wiping the existing lockfile
-  local nh="$T_ROOT/nohash-unit" f; /bin/mkdir -p "$nh"
+  local nh="$T_ROOT/nohash-unit"; /bin/mkdir -p "$nh"
   for f in /usr/bin/* /bin/*; do
     [[ "${f:t}" == (shasum*|sha*sum|openssl) ]] && continue
     [[ -e "$nh/${f:t}" ]] || ln -s "$f" "$nh/${f:t}"
@@ -347,6 +347,25 @@ if want U; then
     myzsh-update-lock >/dev/null 2>&1; l=$?
     print -r -- "${U_T1:-}${U_T2:-}:$(grep -c . '"${(q)u}"'/err):$l:$(grep -c deadbeef '"${(q)u}"'/myzsh.lock)"' 2>&1)"
   [[ "$r" == "11:1:1:2" ]]; t_check "U no sha256 tool: files load, 1 warning, lockfile kept [$r]" $?
+  # myzsh-update-lock prints only its own status lines (no stray hash=...)
+  /bin/mkdir -p "$u/themes" && print '#' > "$u/themes/a.zsh-theme" && print '#' > "$u/themes/b.zsh-theme"
+  r="$(MYZSH_DIR="$u" MYZSH_LOCKFILE="$u/myzsh.lock" /bin/zsh -fc '
+    source '"${(q)T_DIR}"'/lib/security.zsh; myzsh-update-lock' 2>&1)"
+  [[ "$r" != *"hash="* && "$r" == *"Locked 2 files"* ]]; t_check "U update-lock: no stray output" $? "$r"
+  # Update banner: stale flag clears when up to date; box is aligned when behind
+  local g="$T_ROOT/upd"; /bin/mkdir -p "$g/cache"
+  git -C "$g" init -q && git -C "$g" -c user.name=t -c user.email=t@t commit -q --allow-empty -m a &&
+    git -C "$g" update-ref refs/remotes/origin/main HEAD
+  ub() { MYZSH_DIR="$g" MYZSH_CACHE="$g/cache" MYZSH_AUTO_UPDATE_CHECK=false LANG=en_US.UTF-8 /bin/zsh -fc '
+    source '"${(q)T_DIR}"'/lib/update-check.zsh' 2>&1 | sed $'s/\e\\[[0-9;]*m//g'; }
+  print 5 > "$g/cache/.update-available"; r="$(ub)"
+  [[ -z "$r" && ! -e "$g/cache/.update-available" ]]; t_check "U stale update notice cleared when up to date" $? "$r"
+  git -C "$g" -c user.name=t -c user.email=t@t commit -q --allow-empty -m b &&
+    git -C "$g" update-ref refs/remotes/origin/main HEAD && git -C "$g" reset -q --hard HEAD~1
+  print 5 > "$g/cache/.update-available"; r="$(ub)"
+  local -a w=(); local l
+  for l in "${(@f)r}"; do [[ -n "$l" ]] && w+=$(LANG=en_US.UTF-8 /bin/zsh -fc 'print ${(m)#1}' _ "$l"); done
+  [[ "$r" == *"1 new commit(s)"* && ${#w} == 6 && ${#${(u)w}} == 1 ]]; t_check "U update banner: live count, aligned box [widths: $w]" $? "$r"
 fi
 
 t_finish

@@ -115,6 +115,7 @@ myzsh-update() {
   echo "  ▸ Pulling latest changes..."
   if git -C "$MYZSH_DIR" pull --ff-only 2>&1 | sed 's/^/    /'; then
     echo "  ✓ Framework updated"
+    command rm -f "$MYZSH_CACHE/.update-available"
   else
     echo "  ✗ Pull failed (you may have local changes)" >&2
     echo "    Run: cd ~/.myzsh && git stash && git pull && git stash pop" >&2
