@@ -13,13 +13,41 @@ export MYZSH_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/myzsh"
 export MYZSH_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/myzsh"
 
 # Create cache/data dirs with restrictive permissions
-[[ -d "$MYZSH_CACHE" ]] || mkdir -p -m 700 "$MYZSH_CACHE"
-[[ -d "$MYZSH_DATA" ]]  || mkdir -p -m 700 "$MYZSH_DATA"
+[[ -d "$MYZSH_CACHE" ]] || command mkdir -p -m 700 "$MYZSH_CACHE"
+[[ -d "$MYZSH_DATA" ]]  || command mkdir -p -m 700 "$MYZSH_DATA"
 
 # ─── Load Security First (bootstrap) ─────────────────────────────────
 # Security module must load before anything else
 if [[ -f "$MYZSH_DIR/lib/security.zsh" ]]; then
   source "$MYZSH_DIR/lib/security.zsh"
+fi
+
+# ─── Agent / IDE / non-interactive detection ─────────────────────────
+# Lean, prompt-free mode for IDE terminals (Kiro, VS Code) and AI agents
+# (Kiro CLI, Claude Code, …). See lib/agent.zsh for the rules.
+[[ -f "$MYZSH_DIR/lib/agent.zsh" ]] && source "$MYZSH_DIR/lib/agent.zsh"
+if (( $+functions[_myzsh_detect_agent] )) && _myzsh_detect_agent; then
+  [[ -f "$MYZSH_DIR/myzsh.conf" ]] && myzsh-safe-source "$MYZSH_DIR/myzsh.conf" true
+  local _m
+  for _m in init keybindings completion; do
+    [[ -f "$MYZSH_DIR/lib/${_m}.zsh" ]] && myzsh-safe-source "$MYZSH_DIR/lib/${_m}.zsh" true
+  done
+  for _m in "${MYZSH_ALIASES[@]}"; do
+    [[ "$_m" =~ [^a-zA-Z0-9_-] ]] && continue
+    [[ -f "$MYZSH_DIR/aliases/${_m}.zsh" ]] && myzsh-safe-source "$MYZSH_DIR/aliases/${_m}.zsh" true
+  done
+  if [[ -d "$MYZSH_DIR/functions" ]]; then
+    fpath=("$MYZSH_DIR/functions" $fpath)
+    for _m in "$MYZSH_DIR"/functions/*(.N); do
+      autoload -Uz "${_m:t}"
+    done
+  fi
+  unset _m
+  # Personal overrides last, so they win (same as full mode)
+  [[ -f "$MYZSH_DIR/local.zsh" ]] && myzsh-safe-source "$MYZSH_DIR/local.zsh" true
+  PROMPT='%~ %# '
+  RPROMPT=''
+  return 0
 fi
 
 # ─── Load Configuration (with ownership check) ───────────────────────

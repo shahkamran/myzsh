@@ -23,10 +23,14 @@ else
 fi
 
 # ─── File Operations (safe) ───────────────────────────────────────────
-alias cp='cp -iv'
-alias mv='mv -iv'
-alias rm='rm -iv'
-alias mkdir='mkdir -pv'
+# Interactive -i prompts ("overwrite …? (y/n)") hang AI agents and IDE
+# tools, so these are for human terminals only (see lib/agent.zsh)
+if [[ -z "$MYZSH_AGENT_MODE" ]]; then
+  alias cp='cp -iv'
+  alias mv='mv -iv'
+  alias rm='rm -iv'
+  alias mkdir='mkdir -pv'
+fi
 
 # ─── Disk & Memory ───────────────────────────────────────────────────
 alias df='df -h'
@@ -36,16 +40,19 @@ alias disk='df -h | head -8'
 
 # ─── Process Management ──────────────────────────────────────────────
 alias psg='ps aux | grep -v grep | grep'
-alias top10='ps aux --sort=-%mem | head -11'
+alias top10='ps aux | head -1; ps aux | sed 1d | sort -nr -k 4 | head -10'
 alias ports='lsof -i -n -P | grep LISTEN'
 alias myip='curl -s https://ifconfig.me && echo'
 alias localip='ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null'
 
 # ─── Search ──────────────────────────────────────────────────────────
-if command -v rg &>/dev/null; then
-  alias grep='rg'
-else
-  alias grep='grep --color=auto'
+# grep→rg changes option semantics; agents expect real grep
+if [[ -z "$MYZSH_AGENT_MODE" ]]; then
+  if command -v rg &>/dev/null; then
+    alias grep='rg'
+  else
+    alias grep='grep --color=auto'
+  fi
 fi
 alias findi='find . -iname'
 

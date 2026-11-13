@@ -7,11 +7,6 @@
 local group="${1:-all}"
 local MYZSH="${MYZSH_DIR:-$HOME/.myzsh}"
 
-_myzsh_help_header() {
-  echo ""
-  echo "%F{cyan}━━━ $1 ━━━%f" | prompt_expand 2>/dev/null || echo "━━━ $1 ━━━"
-}
-
 _myzsh_help_print_header() {
   echo ""
   printf "\033[36m━━━ %s ━━━\033[0m\n" "$1"
@@ -52,11 +47,11 @@ if [[ "$group" == "all" ]]; then
   _myzsh_help_print_header "Commands"
   _myzsh_help_print_func "myzsh-info" "show myzsh version and config"
   _myzsh_help_print_func "myzsh-update" "pull latest myzsh + plugins"
-  _myzsh_help_print_func "myzsh-help" "this cheatsheet"
+  _myzsh_help_print_func "myzsh-help" "this cheatsheet (shortcut: ?)"
   _myzsh_help_print_func "reload" "reload shell (exec zsh)"
 
   echo ""
-  printf "  \033[240mTip: myzsh-help git | myzsh-help docker | myzsh-help system\033[0m\n"
+  printf "  \033[38;5;240mTip: myzsh-help git | myzsh-help docker | myzsh-help system\033[0m\n"
   echo ""
   return 0
 fi

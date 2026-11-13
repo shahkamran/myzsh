@@ -12,6 +12,17 @@ else
   bindkey -e  # emacs mode (default)
 fi
 
+# ─── History Search (Up/Down with prefix matching) ────────────────────
+# Must be after bindkey -e/-v which resets all bindings to defaults
+autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+
+bindkey "^[[A" up-line-or-beginning-search    # Up arrow
+bindkey "^[[B" down-line-or-beginning-search  # Down arrow
+bindkey "^[OA" up-line-or-beginning-search    # Up arrow (application mode)
+bindkey "^[OB" down-line-or-beginning-search  # Down arrow (application mode)
+
 # ─── Common Shortcuts ─────────────────────────────────────────────────
 # Navigation
 bindkey '^[[H'  beginning-of-line       # Home

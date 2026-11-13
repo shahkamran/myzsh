@@ -30,6 +30,8 @@ A minimalist, security-conscious, decorative zsh framework with sub-100ms startu
 git clone https://github.com/shahkamran/myzsh.git ~/.myzsh && ~/.myzsh/install.sh
 ```
 
+Requirements: `zsh` 5.x, `git`, and `bash` for `install.sh` (Alpine: `apk add bash`). Works on macOS and Linux (Debian/Ubuntu, Fedora/RHEL, Arch, Alpine/BusyBox).
+
 This will:
 1. Clone the framework to `~/.myzsh`
 2. Symlink the zshrc
@@ -240,6 +242,12 @@ Default mode is **emacs** (set `MYZSH_KEYBIND_STYLE="vim"` for vi mode).
 | `Alt+Up` | Navigate to parent directory |
 | `Alt+Left` | Pop directory stack (go back) |
 | `Up/Down` | History search by prefix |
+| `Tab` | Complete the word; on an ambiguous match, press again to list and again to open the menu |
+| `Tab` / `Shift+Tab` (in menu) | Next / previous match (replaces the current word) |
+| Arrow keys (in menu) | Move the selection |
+| `Return` (in menu) | Accept the selection and run the line |
+| `Ctrl+O` (in menu) | Accept and keep completing (drill into a directory) |
+| `Ctrl+G` (in menu) | Cancel the menu |
 
 ---
 
@@ -346,7 +354,20 @@ curl -s "wttr.in/${1:-}"
 
 ### Local Overrides
 
-Create `~/.myzsh/local.zsh` for machine-specific settings that shouldn't be tracked by git.
+Create `~/.myzsh/local.zsh` for machine-specific settings that shouldn't be tracked by git. Personal or work-specific aliases and functions belong here too, not in `aliases/custom.zsh`. It's git-ignored, loaded last (so it overrides framework aliases), and loaded in both full and agent mode. Keep it free of prompts and terminal escape sequences, so agent shells stay clean.
+
+### Agent / IDE Mode
+
+myzsh switches to a lean, prompt-free **agent mode** when it detects:
+
+- a non-interactive or tty-less shell (`zsh -ic` from a tool, piped stdin, `TERM=dumb`)
+- IDE terminals with shell integration (`TERM_PROGRAM=kiro` or `vscode`)
+- AI-agent markers (`KIRO_SESSION_ID`, `CLAUDECODE`, `CURSOR_AGENT`, `GEMINI_CLI`, `CODEX_SANDBOX`)
+- a parent process that is an agent CLI (`kiro-cli`, `q`, `claude`, `codex`, `gemini`, `aider`, …)
+
+Agent mode loads options, key bindings, completion, aliases, functions and `local.zsh`, with a plain `%~ %# ` prompt. It skips the theme, plugins, deferred loading, history, the update check and startup banners. It also turns off spelling correction and the interactive `cp`/`mv`/`rm -i` and `grep→rg` aliases, so commands never stop to ask a question.
+
+Overrides: `MYZSH_FORCE_INTERACTIVE=1` always loads the full framework, and `MYZSH_AGENT_MODE=1` forces agent mode.
 
 ---
 
@@ -382,7 +403,7 @@ Contributions are welcome! Here's how:
 1. **Fork** the repository
 2. **Create a branch**: `git checkout -b feature/my-feature`
 3. **Make your changes** — follow the existing code style
-4. **Test** — ensure startup stays under 100ms
+4. **Test** — run `zsh -f tests/run.zsh` (drives real interactive shells via `zpty`) and ensure startup stays under 100ms
 5. **Commit**: `git commit -m "feat: add my feature"`
 6. **Push**: `git push origin feature/my-feature`
 7. **Open a Pull Request**

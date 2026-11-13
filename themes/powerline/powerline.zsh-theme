@@ -5,36 +5,38 @@
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # ─── Nerd Font Icons ──────────────────────────────────────────────────
+# typeset -g: this file is sourced from inside myzsh-safe-source(), where
+# `local` would scope these to that function and they'd be gone at prompt time
 if [[ "$MYZSH_NERD_FONTS" == "true" ]]; then
-  local ICON_BRANCH=""       # git branch
-  local ICON_DIRTY="✗"
-  local ICON_CLEAN="✓"
-  local ICON_AHEAD="⇡"
-  local ICON_BEHIND="⇣"
-  local ICON_STASH=""
-  local ICON_FOLDER=""
-  local ICON_HOME=""
-  local ICON_CLOCK=""
-  local ICON_CMD="❯"
-  local ICON_ROOT="#"
-  local ICON_SSH=""
-  local ICON_ARROW=""       # powerline separator
-  local ICON_ARROW_THIN="" # thin separator
+  typeset -g ICON_BRANCH=""       # git branch
+  typeset -g ICON_DIRTY="✗"
+  typeset -g ICON_CLEAN="✓"
+  typeset -g ICON_AHEAD="⇡"
+  typeset -g ICON_BEHIND="⇣"
+  typeset -g ICON_STASH=""
+  typeset -g ICON_FOLDER=""
+  typeset -g ICON_HOME=""
+  typeset -g ICON_CLOCK=""
+  typeset -g ICON_CMD="❯"
+  typeset -g ICON_ROOT="#"
+  typeset -g ICON_SSH=""
+  typeset -g ICON_ARROW=""       # powerline separator
+  typeset -g ICON_ARROW_THIN="" # thin separator
 else
-  local ICON_BRANCH="⎇"
-  local ICON_DIRTY="×"
-  local ICON_CLEAN="✓"
-  local ICON_AHEAD="↑"
-  local ICON_BEHIND="↓"
-  local ICON_STASH="≡"
-  local ICON_FOLDER="📁"
-  local ICON_HOME="~"
-  local ICON_CLOCK="⏱"
-  local ICON_CMD="❯"
-  local ICON_ROOT="#"
-  local ICON_SSH="SSH"
-  local ICON_ARROW="▶"
-  local ICON_ARROW_THIN="│"
+  typeset -g ICON_BRANCH="⎇"
+  typeset -g ICON_DIRTY="×"
+  typeset -g ICON_CLEAN="✓"
+  typeset -g ICON_AHEAD="↑"
+  typeset -g ICON_BEHIND="↓"
+  typeset -g ICON_STASH="≡"
+  typeset -g ICON_FOLDER="📁"
+  typeset -g ICON_HOME="~"
+  typeset -g ICON_CLOCK="⏱"
+  typeset -g ICON_CMD="❯"
+  typeset -g ICON_ROOT="#"
+  typeset -g ICON_SSH="SSH"
+  typeset -g ICON_ARROW="▶"
+  typeset -g ICON_ARROW_THIN="│"
 fi
 
 # ─── Colour Palette ──────────────────────────────────────────────────
@@ -43,34 +45,34 @@ fi
 
 if [[ "$MYZSH_TRANSPARENT" == "true" ]]; then
   # Transparent mode: minimal backgrounds, vibrant foregrounds
-  local C_USER="%F{cyan}"
-  local C_HOST="%F{blue}"
-  local C_DIR="%F{magenta}"
-  local C_GIT_CLEAN="%F{green}"
-  local C_GIT_DIRTY="%F{yellow}"
-  local C_TIME="%F{240}"
-  local C_CMD_OK="%F{green}"
-  local C_CMD_FAIL="%F{red}"
-  local C_EXEC_TIME="%F{yellow}"
-  local C_VENV="%F{cyan}"
-  local C_RESET="%f"
-  local C_BG=""
-  local SEP_STYLE="thin"  # use thin separators for transparency
+  typeset -g C_USER="%F{cyan}"
+  typeset -g C_HOST="%F{blue}"
+  typeset -g C_DIR="%F{magenta}"
+  typeset -g C_GIT_CLEAN="%F{green}"
+  typeset -g C_GIT_DIRTY="%F{yellow}"
+  typeset -g C_TIME="%F{240}"
+  typeset -g C_CMD_OK="%F{green}"
+  typeset -g C_CMD_FAIL="%F{red}"
+  typeset -g C_EXEC_TIME="%F{yellow}"
+  typeset -g C_VENV="%F{cyan}"
+  typeset -g C_RESET="%f"
+  typeset -g C_BG=""
+  typeset -g SEP_STYLE="thin"  # use thin separators for transparency
 else
   # Opaque mode: full powerline segments with backgrounds
-  local C_USER="%F{white}%K{24}"   # dark blue bg
-  local C_HOST="%F{white}%K{24}"
-  local C_DIR="%F{white}%K{54}"    # purple bg
-  local C_GIT_CLEAN="%F{black}%K{green}"
-  local C_GIT_DIRTY="%F{black}%K{yellow}"
-  local C_TIME="%F{white}%K{236}"  # dark grey bg
-  local C_CMD_OK="%F{green}"
-  local C_CMD_FAIL="%F{red}"
-  local C_EXEC_TIME="%F{yellow}%K{236}"
-  local C_VENV="%F{white}%K{cyan}"
-  local C_RESET="%f%k"
-  local C_BG="%k"
-  local SEP_STYLE="full"
+  typeset -g C_USER="%F{white}%K{24}"   # dark blue bg
+  typeset -g C_HOST="%F{white}%K{24}"
+  typeset -g C_DIR="%F{white}%K{54}"    # purple bg
+  typeset -g C_GIT_CLEAN="%F{black}%K{green}"
+  typeset -g C_GIT_DIRTY="%F{black}%K{yellow}"
+  typeset -g C_TIME="%F{white}%K{236}"  # dark grey bg
+  typeset -g C_CMD_OK="%F{green}"
+  typeset -g C_CMD_FAIL="%F{red}"
+  typeset -g C_EXEC_TIME="%F{yellow}%K{236}"
+  typeset -g C_VENV="%F{white}%K{cyan}"
+  typeset -g C_RESET="%f%k"
+  typeset -g C_BG="%k"
+  typeset -g SEP_STYLE="full"
 fi
 
 # ─── Git Status Function ─────────────────────────────────────────────

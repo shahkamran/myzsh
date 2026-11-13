@@ -6,6 +6,45 @@
 
 MYZSH_LOCKFILE="$MYZSH_DIR/myzsh.lock"
 
+# ─── Portable helpers (macOS/BSD + GNU/BusyBox) ───────────────────────
+# _myzsh_stat owner|perms <path>: numeric owner uid or octal permissions
+_myzsh_stat() {
+  local fmt_gnu fmt_bsd
+  case "$1" in
+    owner) fmt_gnu='%u' fmt_bsd='%u' ;;
+    perms) fmt_gnu='%a' fmt_bsd='%Lp' ;;
+  esac
+  # GNU `stat -f` means --file-system and prints to stdout, so the flavour
+  # is detected once (below) instead of trying one and falling back
+  if [[ "$_myzsh_stat_flavour" == gnu ]]; then
+    command stat -c "$fmt_gnu" "$2" 2>/dev/null
+  else
+    command stat -f "$fmt_bsd" "$2" 2>/dev/null
+  fi
+}
+if command stat -c '%u' / >/dev/null 2>&1; then
+  typeset -g _myzsh_stat_flavour=gnu
+else
+  typeset -g _myzsh_stat_flavour=bsd
+fi
+
+_myzsh_have_sha256() {
+  (( $+commands[sha256sum] || $+commands[shasum] || $+commands[openssl] ))
+}
+
+# _myzsh_sha256 <file>: print the hex sha256 of a file (nothing on failure)
+_myzsh_sha256() {
+  local out
+  if (( $+commands[sha256sum] )); then
+    out=$(command sha256sum "$1" 2>/dev/null)
+  elif (( $+commands[shasum] )); then
+    out=$(command shasum -a 256 "$1" 2>/dev/null)
+  elif (( $+commands[openssl] )); then
+    out=$(command openssl dgst -sha256 -r "$1" 2>/dev/null)
+  fi
+  print -r -- "${out%% *}"
+}
+
 # ─── Safe Source ──────────────────────────────────────────────────────
 # Sources a file only if it passes ownership, permission, and checksum checks
 # Usage: myzsh-safe-source <file> [skip_checksum:true|false]
@@ -20,8 +59,8 @@ myzsh-safe-source() {
   # Permission and ownership checks
   if [[ "$MYZSH_STRICT_PERMISSIONS" == "true" ]]; then
     local file_owner file_perms
-    file_owner=$(stat -f '%u' "$file" 2>/dev/null || stat -c '%u' "$file" 2>/dev/null)
-    file_perms=$(stat -f '%Lp' "$file" 2>/dev/null || stat -c '%a' "$file" 2>/dev/null)
+    file_owner=$(_myzsh_stat owner "$file")
+    file_perms=$(_myzsh_stat perms "$file")
 
     # Must be owned by current user or root
     if [[ "$file_owner" != "$(id -u)" && "$file_owner" != "0" ]]; then
@@ -43,7 +82,7 @@ myzsh-safe-source() {
     if [[ -f "$MYZSH_LOCKFILE" ]]; then
       # Verify lockfile ownership before trusting it
       local lock_owner
-      lock_owner=$(stat -f '%u' "$MYZSH_LOCKFILE" 2>/dev/null || stat -c '%u' "$MYZSH_LOCKFILE" 2>/dev/null)
+      lock_owner=$(_myzsh_stat owner "$MYZSH_LOCKFILE")
       if [[ "$lock_owner" != "$(id -u)" && "$lock_owner" != "0" ]]; then
         echo "🔒 myzsh: lockfile has wrong owner, refusing all plugin loads" >&2
         return 1
@@ -53,9 +92,15 @@ myzsh-safe-source() {
       local expected_hash
       expected_hash=$(grep -F "${file}:" "$MYZSH_LOCKFILE" 2>/dev/null | head -1 | cut -d: -f2-)
 
-      if [[ -n "$expected_hash" ]]; then
+      if [[ -n "$expected_hash" ]] && ! _myzsh_have_sha256; then
+        # No hashing tool on this system: warn once, don't break startup
+        if [[ -z "$_myzsh_nohash_warned" ]]; then
+          typeset -g _myzsh_nohash_warned=1
+          echo "⚠️  myzsh: no sha256 tool (sha256sum/shasum/openssl), skipping checksum checks" >&2
+        fi
+      elif [[ -n "$expected_hash" ]]; then
         local actual_hash
-        actual_hash=$(shasum -a 256 "$file" 2>/dev/null | cut -d' ' -f1)
+        actual_hash=$(_myzsh_sha256 "$file")
         if [[ "$actual_hash" != "$expected_hash" ]]; then
           echo "🔒 myzsh: CHECKSUM MISMATCH for '$file'" >&2
           echo "   Expected: ${expected_hash:0:16}..." >&2
@@ -74,12 +119,16 @@ myzsh-safe-source() {
 # Regenerates checksums for all plugin and theme files
 myzsh-update-lock() {
   echo "🔒 Updating myzsh lockfile..."
+  if ! _myzsh_have_sha256; then
+    echo "   ✗ no sha256 tool found (install coreutils, perl-Digest-SHA or openssl)" >&2
+    return 1
+  fi
   : > "$MYZSH_LOCKFILE"
 
   local count=0
   for plugin_file in "$MYZSH_DIR"/plugins/**/*.plugin.zsh(N); do
     local hash
-    hash=$(shasum -a 256 "$plugin_file" | cut -d' ' -f1)
+    hash=$(_myzsh_sha256 "$plugin_file")
     echo "${plugin_file}:${hash}" >> "$MYZSH_LOCKFILE"
     ((count++))
   done
@@ -87,7 +136,7 @@ myzsh-update-lock() {
   # Also hash theme files
   for theme_file in "$MYZSH_DIR"/themes/**/*.zsh-theme(N); do
     local hash
-    hash=$(shasum -a 256 "$theme_file" | cut -d' ' -f1)
+    hash=$(_myzsh_sha256 "$theme_file")
     echo "${theme_file}:${hash}" >> "$MYZSH_LOCKFILE"
     ((count++))
   done
@@ -103,6 +152,11 @@ myzsh-verify() {
     return 1
   fi
 
+  if ! _myzsh_have_sha256; then
+    echo "⚠️  No sha256 tool found (sha256sum/shasum/openssl)."
+    return 1
+  fi
+
   local failures=0 checked=0
   while IFS='' read -r line; do
     # Split on last colon (handles paths with colons)
@@ -115,7 +169,7 @@ myzsh-verify() {
       continue
     fi
     local actual_hash
-    actual_hash=$(shasum -a 256 "$file" | cut -d' ' -f1)
+    actual_hash=$(_myzsh_sha256 "$file")
     if [[ "$actual_hash" != "$expected_hash" ]]; then
       echo "  ✗ Modified: $file"
       ((failures++))
@@ -136,7 +190,7 @@ myzsh-verify() {
 if [[ "$MYZSH_STRICT_PERMISSIONS" == "true" ]]; then
   if [[ -d "$MYZSH_DIR" ]]; then
     local dir_perms
-    dir_perms=$(stat -f '%Lp' "$MYZSH_DIR" 2>/dev/null || stat -c '%a' "$MYZSH_DIR" 2>/dev/null)
+    dir_perms=$(_myzsh_stat perms "$MYZSH_DIR")
     if [[ "$dir_perms" != "700" ]]; then
       chmod 700 "$MYZSH_DIR" 2>/dev/null
     fi
